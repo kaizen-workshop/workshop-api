@@ -514,6 +514,9 @@ As configurações locais podem ser sobrescritas por `DB_URL`, `DB_USERNAME`,
 `DB_PASSWORD`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME` e `SMTP_PASSWORD`.
 Não use credenciais reais nos arquivos versionados.
 
+O Flyway aplica automaticamente as migrations de `src/main/resources/db/migration`
+na inicialização. O Hibernate apenas valida o schema e não o altera.
+
 ---
 
 # Qualidade
