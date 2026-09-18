@@ -42,7 +42,7 @@ Delivered:
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Implement the user domain, roles (`PARTICIPANT`, `ARWEG`, `ADMIN`), status, UUID
