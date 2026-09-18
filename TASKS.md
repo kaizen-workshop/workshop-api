@@ -28,7 +28,7 @@ Objetivo: criar uma base estável para todas as funcionalidades seguintes.
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Implementar:
@@ -65,7 +65,7 @@ Critérios de aceite:
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Criar módulos:
@@ -108,7 +108,7 @@ TASK-001
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Implementar:
@@ -137,7 +137,7 @@ TASK-001
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Implementar:
@@ -165,7 +165,7 @@ TASK-003
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Criar:
@@ -201,7 +201,7 @@ Critérios de aceite:
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Critérios de aceite:
