@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/workshop_api}
+    username: ${DB_USERNAME:workshop}
+    password: ${DB_PASSWORD:workshop}
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
