@@ -3,6 +3,7 @@ package br.com.weg.workshop;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,6 +15,7 @@ import br.com.weg.workshop.user.service.ProfileService;
 import br.com.weg.workshop.preference.service.CategoryService;
 import br.com.weg.workshop.preference.service.PreferenceService;
 import br.com.weg.workshop.preference.service.ThemeService;
+import br.com.weg.workshop.workshop.service.WorkshopService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -61,6 +63,9 @@ class FoundationIntegrationTest {
     @MockBean
     private CategoryService categoryService;
 
+    @MockBean
+    private WorkshopService workshopService;
+
     @Test
     void healthEndpointIsPublicAndReportsUp() throws Exception {
         mockMvc.perform(get("/actuator/health"))
@@ -101,6 +106,21 @@ class FoundationIntegrationTest {
                         .with(user("participant").roles("PARTICIPANT"))
                         .contentType("application/json")
                         .content("{\"name\":\"Java\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void workshopCatalogueRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/workshops"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void participantCannotCreateWorkshop() throws Exception {
+        mockMvc.perform(patch("/api/v1/workshops/{id}/publish", java.util.UUID.randomUUID())
+                        .with(user("participant").roles("PARTICIPANT")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }

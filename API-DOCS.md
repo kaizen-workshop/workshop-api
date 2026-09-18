@@ -16,6 +16,13 @@
 | `GET /api/v1/categories` | Authenticated | Lists active categories. |
 | `POST /api/v1/admin/categories` | `ADMIN` | Creates a category from `TaxonomyRequest`. Returns `201`. |
 | `PATCH /api/v1/admin/categories/{id}` | `ADMIN` | Updates a category's provided name, description and/or active state. |
+| `POST /api/v1/workshops` | `ARWEG`, `ADMIN` | Creates a workshop in `DRAFT`. |
+| `GET /api/v1/workshops` | Authenticated | Lists visible workshops, paginated with optional `status`, `themeId` and `categoryId` filters. |
+| `GET /api/v1/workshops/{id}` | Authenticated | Returns a published workshop; creators and admins can also access non-public states. |
+| `PUT /api/v1/workshops/{id}` | Creator or `ADMIN` | Replaces editable fields of a draft or scheduled workshop. |
+| `PATCH /api/v1/workshops/{id}/schedule` | Creator or `ADMIN` | Schedules publication. |
+| `PATCH /api/v1/workshops/{id}/publish`, `/close`, `/cancel`, `/archive` | Creator or `ADMIN` | Performs the corresponding valid lifecycle transition. |
+| `POST /api/v1/workshops/{id}/duplicate` | Creator or `ADMIN` | Creates a draft copy. |
 | `GET /actuator/health` | Public | Health check. |
 | `GET /v3/api-docs`, `/swagger-ui.html` | Public | OpenAPI document and Swagger UI. |
 
@@ -53,6 +60,15 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `PreferenceService`: validates the full requested set before deleting current selections, so nonexistent or inactive themes never result in partial replacement.
 - DTOs: `TaxonomyRequest` creates taxonomy items; `UpdateTaxonomyRequest` accepts one or more optional metadata/status changes; `ReplaceThemesRequest` receives a non-null set of theme UUIDs.
 - `V4__create_preferences.sql`: creates `theme`, `category` and `user_theme`, including unique taxonomy names and foreign keys to users/themes.
+
+## Workshop module
+
+- `Workshop`: catalogue entity associated with active `Theme`, `Category` and the creating user. It stores scheduling, registration window, capacity, modality, price, payment method, image reference and audit fields.
+- `WorkshopStatus`: `DRAFT`, `SCHEDULED`, `PUBLISHED`, `CLOSED`, `CANCELLED`, `ARCHIVED`. Allowed transitions are `DRAFT -> SCHEDULED|PUBLISHED`, `SCHEDULED -> PUBLISHED`, `PUBLISHED -> CLOSED|CANCELLED` and `CLOSED -> ARCHIVED`.
+- `WorkshopService`: validates workshop periods and active taxonomy references, restricts non-public visibility to the creator or admin, centralizes transitions, duplication and scheduled publication.
+- `WorkshopController`: uses authenticated JWT identity for ownership. `ARWEG` and `ADMIN` manage workshops; `ADMIN` can manage every workshop and ARWEG only its own.
+- `WorkshopRequest`, `WorkshopResponse` and `SchedulePublicationRequest`: safe request/response DTOs. Listing uses Spring's `page`, `size` and `sort` parameters, defaults to 20 items sorted by start date and supports `status`, `themeId` and `categoryId` filters.
+- `V5__create_workshops.sql`: creates the workshop table with UUID/foreign-key relations, capacity, price and period constraints plus catalogue indexes.
 
 ## Cross-cutting classes
 

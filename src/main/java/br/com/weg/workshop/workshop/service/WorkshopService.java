@@ -1,0 +1,33 @@
+package br.com.weg.workshop.workshop.service;
+
+import br.com.weg.workshop.preference.domain.*;
+import br.com.weg.workshop.preference.repository.*;
+import br.com.weg.workshop.shared.error.*;
+import br.com.weg.workshop.user.domain.*;
+import br.com.weg.workshop.user.repository.UserRepository;
+import br.com.weg.workshop.workshop.domain.*;
+import br.com.weg.workshop.workshop.dto.*;
+import br.com.weg.workshop.workshop.repository.WorkshopRepository;
+import java.time.Instant; import java.util.*;
+import org.springframework.data.domain.*; import org.springframework.scheduling.annotation.Scheduled; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class WorkshopService {
+ private final WorkshopRepository workshops; private final ThemeRepository themes; private final CategoryRepository categories; private final UserRepository users;
+ public WorkshopService(WorkshopRepository workshops,ThemeRepository themes,CategoryRepository categories,UserRepository users){this.workshops=workshops;this.themes=themes;this.categories=categories;this.users=users;}
+ @Transactional public WorkshopResponse create(UUID userId, WorkshopRequest request){UserEntity user=user(userId); return WorkshopResponse.from(workshops.save(Workshop.create(data(request), activeTheme(request.themeId()), activeCategory(request.categoryId()), user)));}
+ @Transactional(readOnly=true) public Page<WorkshopResponse> list(UUID userId, boolean admin, WorkshopStatus status, UUID themeId, UUID categoryId, Pageable pageable){return workshops.findVisible(userId,admin,status,themeId,categoryId,pageable).map(WorkshopResponse::from);}
+ @Transactional(readOnly=true) public WorkshopResponse get(UUID userId, boolean admin, UUID id){Workshop workshop=workshop(id); if(workshop.getStatus()!=WorkshopStatus.PUBLISHED&&!admin&&!workshop.getCreatedBy().getId().equals(userId))throw new ResourceNotFoundException("Workshop not found."); return WorkshopResponse.from(workshop);}
+ @Transactional public WorkshopResponse update(UUID userId,boolean admin,UUID id,WorkshopRequest request){Workshop workshop=manageable(userId,admin,id); if(workshop.getStatus()!=WorkshopStatus.DRAFT&&workshop.getStatus()!=WorkshopStatus.SCHEDULED)throw new ConflictException("Only draft or scheduled workshops can be edited."); workshop.apply(data(request),activeTheme(request.themeId()),activeCategory(request.categoryId())); return WorkshopResponse.from(workshop);}
+ @Transactional public WorkshopResponse schedule(UUID userId,boolean admin,UUID id,SchedulePublicationRequest request){Workshop workshop=manageable(userId,admin,id); transition(workshop,WorkshopStatus.SCHEDULED); workshop.schedule(request.scheduledPublishAt()); return WorkshopResponse.from(workshop);}
+ @Transactional public WorkshopResponse publish(UUID userId,boolean admin,UUID id){Workshop workshop=manageable(userId,admin,id); transition(workshop,WorkshopStatus.PUBLISHED); workshop.publish(); return WorkshopResponse.from(workshop);}
+ @Transactional public WorkshopResponse close(UUID userId,boolean admin,UUID id){Workshop workshop=manageable(userId,admin,id); transition(workshop,WorkshopStatus.CLOSED); workshop.close(); return WorkshopResponse.from(workshop);}
+ @Transactional public WorkshopResponse cancel(UUID userId,boolean admin,UUID id){Workshop workshop=manageable(userId,admin,id); transition(workshop,WorkshopStatus.CANCELLED); workshop.cancel(); return WorkshopResponse.from(workshop);}
+ @Transactional public WorkshopResponse archive(UUID userId,boolean admin,UUID id){Workshop workshop=manageable(userId,admin,id); transition(workshop,WorkshopStatus.ARCHIVED); workshop.archive(); return WorkshopResponse.from(workshop);}
+ @Transactional public WorkshopResponse duplicate(UUID userId,boolean admin,UUID id){Workshop source=manageable(userId,admin,id); UserEntity creator=user(userId); WorkshopData copy=new WorkshopData(source.getTitle()+" (copy)",source.getDescription(),source.getImage(),source.getStartDate(),source.getEndDate(),source.getStartTime(),source.getEndTime(),source.getLocation(),source.getModality(),source.getPrice(),source.getRegistrationStart(),source.getRegistrationEnd(),source.getMaximumParticipants(),source.getPaymentMethod(),source.getAdditionalInformation()); return WorkshopResponse.from(workshops.save(Workshop.create(copy,source.getTheme(),source.getCategory(),creator)));}
+ @Scheduled(fixedDelayString="${app.workshop.scheduled-publication-delay-ms:60000}") @Transactional public void publishScheduled(){workshops.findByStatusAndScheduledPublishAtLessThanEqual(WorkshopStatus.SCHEDULED,Instant.now()).forEach(Workshop::publish);}
+ private void transition(Workshop workshop,WorkshopStatus target){boolean valid=switch(workshop.getStatus()){case DRAFT->target==WorkshopStatus.SCHEDULED||target==WorkshopStatus.PUBLISHED;case SCHEDULED->target==WorkshopStatus.PUBLISHED;case PUBLISHED->target==WorkshopStatus.CLOSED||target==WorkshopStatus.CANCELLED;case CLOSED->target==WorkshopStatus.ARCHIVED;default->false;};if(!valid)throw new ConflictException("Invalid workshop status transition.");}
+ private Workshop manageable(UUID userId,boolean admin,UUID id){Workshop workshop=workshop(id);if(!admin&&!workshop.getCreatedBy().getId().equals(userId))throw new ResourceNotFoundException("Workshop not found.");return workshop;}
+ private Workshop workshop(UUID id){return workshops.findById(id).orElseThrow(()->new ResourceNotFoundException("Workshop not found."));} private UserEntity user(UUID id){return users.findById(id).orElseThrow(()->new ResourceNotFoundException("User not found."));} private Theme activeTheme(UUID id){Theme theme=themes.findById(id).orElseThrow(()->new ResourceNotFoundException("Theme not found."));if(!theme.isActive())throw new IllegalArgumentException("Theme must be active.");return theme;} private Category activeCategory(UUID id){Category category=categories.findById(id).orElseThrow(()->new ResourceNotFoundException("Category not found."));if(!category.isActive())throw new IllegalArgumentException("Category must be active.");return category;}
+ private WorkshopData data(WorkshopRequest r){if(r.endDate().isBefore(r.startDate())||(r.endDate().equals(r.startDate())&&!r.endTime().isAfter(r.startTime())))throw new IllegalArgumentException("Workshop end must be after start.");if(!r.registrationEnd().isAfter(r.registrationStart()))throw new IllegalArgumentException("Registration end must be after start.");return new WorkshopData(r.title(),r.description(),r.image(),r.startDate(),r.endDate(),r.startTime(),r.endTime(),r.location(),r.modality(),r.price(),r.registrationStart(),r.registrationEnd(),r.maximumParticipants(),r.paymentMethod(),r.additionalInformation());}
+}
