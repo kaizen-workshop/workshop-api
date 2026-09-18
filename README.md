@@ -517,6 +517,9 @@ Não use credenciais reais nos arquivos versionados.
 O Flyway aplica automaticamente as migrations de `src/main/resources/db/migration`
 na inicialização. O Hibernate apenas valida o schema e não o altera.
 
+Com a API em execução, a documentação OpenAPI está disponível em
+`/swagger-ui.html`; o documento JSON está em `/v3/api-docs`.
+
 ---
 
 # Qualidade
