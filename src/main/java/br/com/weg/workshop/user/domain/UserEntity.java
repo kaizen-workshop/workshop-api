@@ -70,6 +70,9 @@ public class UserEntity {
     public UserStatus getStatus() { return status; }
     public boolean isMustChangePassword() { return mustChangePassword; }
     public String getPasswordHash() { return passwordHash; }
+    public String getPhone() { return phone; }
+    public String getProfileImage() { return profileImage; }
+    public void updateProfile(String name, String phone, String profileImage) { this.name = name; this.phone = phone; this.profileImage = profileImage; this.updatedAt = Instant.now(); }
 
     public void changePassword(String passwordHash) {
         this.passwordHash = passwordHash;

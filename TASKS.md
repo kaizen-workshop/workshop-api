@@ -83,7 +83,7 @@ tests for missing, invalid and expired tokens, blocked users and role boundaries
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Deliver the self-profile API, administrative themes and categories, and replacement of a

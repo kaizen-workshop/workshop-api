@@ -3,12 +3,17 @@ package br.com.weg.workshop;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import br.com.weg.workshop.shared.error.ConflictException;
 import br.com.weg.workshop.user.service.UserAdministrationService;
 import br.com.weg.workshop.auth.service.AuthenticationService;
+import br.com.weg.workshop.user.service.ProfileService;
+import br.com.weg.workshop.preference.service.CategoryService;
+import br.com.weg.workshop.preference.service.PreferenceService;
+import br.com.weg.workshop.preference.service.ThemeService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -44,6 +49,18 @@ class FoundationIntegrationTest {
     @MockBean
     private AuthenticationService authenticationService;
 
+    @MockBean
+    private ProfileService profileService;
+
+    @MockBean
+    private PreferenceService preferenceService;
+
+    @MockBean
+    private ThemeService themeService;
+
+    @MockBean
+    private CategoryService categoryService;
+
     @Test
     void healthEndpointIsPublicAndReportsUp() throws Exception {
         mockMvc.perform(get("/actuator/health"))
@@ -66,6 +83,26 @@ class FoundationIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.path").value("/api/v1/foundation-test/protected"));
+    }
+
+    @Test
+    void profileAndTaxonomyEndpointsRequireAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/users/me"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/themes"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(put("/api/v1/users/me/themes").contentType("application/json").content("{\"themeIds\":[]}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void participantCannotManageTaxonomy() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/themes")
+                        .with(user("participant").roles("PARTICIPANT"))
+                        .contentType("application/json")
+                        .content("{\"name\":\"Java\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test
