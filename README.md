@@ -1,624 +1,113 @@
-# workshop_api
+# Workshop API
 
-API backend do projeto de workshops da ARWEG.
+Backend API for ARWEG workshop discovery, administration and participation.
+The project is a modular Spring Boot monolith designed primarily for a mobile client.
 
-O sistema centraliza descoberta, publicação, gerenciamento e participação em workshops, incluindo autenticação, feed personalizado, inscrições, pagamentos, grupos, chat, avaliações, notificações e recursos administrativos.
+## Current status
 
-A API foi pensada principalmente para consumo por uma aplicação mobile.
+The Foundation delivery is complete. It provides the application baseline, PostgreSQL
+development configuration, Flyway, health checks, error responses, OpenAPI and tests.
+Authentication, users and business modules are still pending.
 
----
+The delivery plan is maintained in [TASKS.md](TASKS.md). It is organized as cohesive
+product flows instead of small technical fragments.
 
-# Status
+## Stack
 
-Projeto em planejamento e implementação inicial.
+- Java 21 and Spring Boot 3.x
+- Spring Web, Data JPA, Security and Bean Validation
+- PostgreSQL and Flyway
+- Spring Mail, Actuator and OpenAPI/Swagger
+- JWT, JUnit 5, Mockito and Testcontainers
 
-O desenvolvimento é orientado por:
-
-- `AGENTS.md`: regras obrigatórias para desenvolvimento humano e por agentes de IA;
-- `TASKS.md`: backlog técnico e ordem de implementação;
-- documentação funcional do projeto: requisitos de negócio.
-
-Antes de iniciar qualquer feature, leia esses arquivos.
-
----
-
-# Objetivos
-
-A API deve permitir que participantes:
-
-- realizem login;
-- configurem preferências;
-- visualizem feed personalizado;
-- consultem workshops;
-- realizem e cancelem inscrições;
-- acompanhem histórico e calendário;
-- participem de grupos;
-- utilizem chat;
-- recebam notificações;
-- avaliem workshops.
-
-Usuários ARWEG devem poder:
-
-- criar e gerenciar workshops;
-- publicar conteúdo;
-- gerenciar participantes;
-- acompanhar inscrições;
-- controlar presença;
-- gerenciar pagamentos;
-- moderar grupos;
-- enviar comunicações;
-- consultar avaliações;
-- consultar métricas.
-
-Administradores devem poder gerenciar usuários e operações administrativas do sistema.
-
----
-
-# Stack
-
-Stack planejada:
+## Project structure
 
 ```text
-Java 21
-Spring Boot 3.x
-Spring Web
-Spring Data JPA
-Spring Security
-Bean Validation
-PostgreSQL
-Flyway
-JWT
-Spring Mail
-Spring Boot Actuator
-OpenAPI / Swagger
-JUnit 5
-Mockito
-Testcontainers
-```
-
----
-
-# Arquitetura
-
-A aplicação será inicialmente um monólito modular.
-
-Não serão utilizados microserviços na primeira versão.
-
-Estrutura de domínio esperada:
-
-```text
-src/main/java/br/com/weg/workshop
-├── auth
-├── user
-├── preference
-├── workshop
-├── registration
-├── payment
-├── feed
-├── post
-├── group
-├── chat
-├── notification
-├── evaluation
-├── audit
-├── file
-├── shared
+br.com.weg.workshop
+├── auth             ├── user           ├── preference
+├── workshop         ├── registration   ├── payment
+├── feed             ├── post           ├── group
+├── chat             ├── notification   ├── evaluation
+├── audit            ├── file           ├── shared
 └── config
 ```
 
-Cada módulo pode conter:
+Modules are created as their domain is implemented. Controllers use DTOs, services own
+business rules and repositories are not accessed from controllers.
 
-```text
-controller
-service
-repository
-domain
-dto
-mapper
-validation
+## Run locally
+
+Prerequisites: JDK 21 and Docker Desktop.
+
+```bash
+docker compose up -d
+./mvnw spring-boot:run
 ```
 
-A separação deve seguir a necessidade do módulo, sem criar camadas vazias apenas por convenção.
+On Windows:
 
----
-
-# API
-
-Base path:
-
-```text
-/api/v1
+```powershell
+docker compose up -d
+.\mvnw.cmd spring-boot:run
 ```
 
-Exemplo:
+Useful URLs after startup:
 
-```text
-GET  /api/v1/workshops
-POST /api/v1/workshops
-GET  /api/v1/workshops/{id}
-```
+- Health: `http://localhost:8080/actuator/health`
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
-A documentação interativa será disponibilizada via OpenAPI/Swagger.
+## Configuration
 
----
-
-# Perfis
-
-Perfis iniciais:
-
-```text
-PARTICIPANT
-ARWEG
-ADMIN
-```
-
-## PARTICIPANT
-
-Pode:
-
-- consultar workshops;
-- editar informações pessoais permitidas;
-- configurar preferências;
-- realizar inscrição;
-- cancelar inscrição;
-- entrar em lista de espera;
-- acessar seus grupos;
-- participar do chat;
-- interagir com posts;
-- avaliar workshops elegíveis.
-
-## ARWEG
-
-Pode, conforme autorização:
-
-- criar workshops;
-- editar workshops;
-- publicar;
-- agendar publicação;
-- cancelar workshops;
-- criar posts;
-- editar posts;
-- gerenciar participantes;
-- gerenciar pagamentos;
-- controlar presença;
-- moderar chats;
-- enviar notificações;
-- visualizar avaliações;
-- visualizar métricas.
-
-## ADMIN
-
-Responsável por operações administrativas do sistema, incluindo gerenciamento de usuários.
-
----
-
-# Autenticação
-
-O login aceitará:
-
-```text
-username
-ou
-e-mail
-```
-
-Fluxo de criação de conta:
-
-```text
-ADMIN cria usuário
-        ↓
-sistema gera senha temporária
-        ↓
-senha é enviada ao e-mail do usuário
-        ↓
-usuário realiza login
-        ↓
-API exige alteração de senha
-        ↓
-usuário cria senha definitiva
-```
-
-A senha nunca é armazenada em texto puro.
-
-A autenticação utilizará access token e refresh token.
-
----
-
-# Workshops
-
-Estados planejados:
-
-```text
-DRAFT
-SCHEDULED
-PUBLISHED
-CLOSED
-CANCELLED
-ARCHIVED
-```
-
-Um workshop poderá possuir informações como:
-
-```text
-title
-description
-image
-theme
-category
-startDate
-endDate
-startTime
-endTime
-location
-modality
-price
-registrationStart
-registrationEnd
-maximumParticipants
-paymentMethod
-additionalInformation
-```
-
-A publicação deve validar se o workshop possui os dados obrigatórios.
-
----
-
-# Inscrições
-
-Antes de confirmar uma inscrição, a API deve validar:
-
-- workshop existente;
-- workshop disponível;
-- período de inscrição;
-- vagas;
-- inscrição anterior;
-- requisitos do workshop;
-- situação de pagamento quando aplicável.
-
-A API deve impedir que duas pessoas ocupem simultaneamente uma única vaga restante.
-
-Esse comportamento será coberto por teste de concorrência.
-
----
-
-# Lista de espera
-
-Quando o workshop estiver lotado, o participante poderá entrar em lista de espera quando permitido.
-
-A ordem deve ser preservada.
-
-Quando uma vaga for liberada, o próximo participante elegível poderá ser promovido.
-
----
-
-# Pagamentos
-
-A API deve manter o domínio de pagamentos desacoplado do gateway externo.
-
-Estados iniciais:
-
-```text
-PENDING
-PAID
-DECLINED
-CANCELLED
-REFUNDED
-EXEMPT
-```
-
-Cancelamentos podem gerar processo de reembolso conforme as regras do workshop.
-
----
-
-# Feed
-
-A aplicação possuirá feed personalizado.
-
-Conteúdos podem considerar:
-
-- preferências;
-- workshops futuros;
-- inscrições abertas;
-- conteúdo em destaque;
-- recência.
-
-Somente usuários autorizados da ARWEG poderão criar posts.
-
-Participantes poderão:
-
-- visualizar;
-- curtir;
-- comentar.
-
-A primeira implementação do feed deve utilizar regras determinísticas.
-
----
-
-# Grupos
-
-Regra inicial:
-
-```text
-1 Workshop -> 1 Grupo
-```
-
-O grupo é vinculado ao ciclo de vida do workshop.
-
-Participantes obtêm acesso ao grupo conforme a situação válida da inscrição e pagamento.
-
-Cancelamentos ou encerramentos devem refletir corretamente no acesso ao grupo.
-
----
-
-# Chat
-
-Cada grupo possui chat.
-
-Participantes autorizados podem enviar e consultar mensagens.
-
-O histórico deve ser paginado.
-
-A API deverá suportar comunicação em tempo real em uma fase posterior através de WebSocket.
-
----
-
-# Avaliações
-
-Após a participação, usuários elegíveis poderão avaliar o workshop.
-
-A avaliação pode conter:
-
-- nota geral;
-- comentário;
-- conteúdo;
-- instrutor;
-- organização.
-
----
-
-# Notificações
-
-Eventos que podem gerar notificações:
-
-- inscrição confirmada;
-- inscrição cancelada;
-- workshop alterado;
-- workshop cancelado;
-- vaga liberada;
-- pagamento atualizado;
-- nova mensagem;
-- novo conteúdo;
-- workshop próximo.
-
-A implementação deve separar a regra de negócio do provedor de push notification.
-
----
-
-# Arquivos
-
-Imagens e anexos não devem ser armazenados diretamente no banco como Base64 por padrão.
-
-Será utilizada uma abstração de armazenamento.
-
-O banco mantém metadados e referência do arquivo.
-
-Uploads devem validar:
-
-- tamanho;
-- extensão;
-- MIME type;
-- integridade.
-
----
-
-# Mobile e offline
-
-Como o cliente principal será mobile, a API deve considerar:
-
-- conexão instável;
-- retries;
-- sincronização incremental;
-- idempotência;
-- payload reduzido;
-- paginação;
-- cache.
-
-Operações críticas podem utilizar:
-
-```http
-Idempotency-Key: <uuid>
-```
-
-Recursos sincronizáveis devem possuir:
-
-```text
-createdAt
-updatedAt
-```
-
----
-
-# Banco de dados
-
-Banco:
-
-```text
-PostgreSQL
-```
-
-Versionamento de schema:
-
-```text
-Flyway
-```
-
-IDs principais:
-
-```text
-UUID
-```
-
-Não utilizar alteração automática de schema como estratégia de produção.
-
----
-
-# Ambientes
-
-Perfis planejados:
-
-```text
-dev
-test
-prod
-```
-
-Credenciais, URLs, segredos e chaves devem ser configurados externamente.
-
-Exemplo:
+The default profile is `dev`. Local defaults are suitable only for the Docker Compose
+database and can be overridden with environment variables:
 
 ```text
 DB_URL
 DB_USERNAME
 DB_PASSWORD
-JWT_SECRET
 SMTP_HOST
+SMTP_PORT
 SMTP_USERNAME
 SMTP_PASSWORD
 ```
 
-Nunca adicionar segredos ao repositório.
+Never commit real credentials. Flyway runs migrations from
+`src/main/resources/db/migration`; Hibernate validates the schema and does not create it.
 
----
+## API conventions
 
-# Rodando localmente
+- Base path: `/api/v1`
+- JSON request/response DTOs; JPA entities are not exposed
+- Protected endpoints require authentication; access rules are enforced by the API
+- Errors use a stable envelope:
 
-A configuração exata será adicionada durante a task inicial de setup.
-
-Fluxo esperado com Maven:
-
-```bash
-./mvnw spring-boot:run
+```json
+{
+  "timestamp": "2026-09-18T12:00:00Z",
+  "status": 400,
+  "code": "VALIDATION_ERROR",
+  "message": "Invalid request.",
+  "path": "/api/v1/example",
+  "errors": []
+}
 ```
 
-Testes:
+## Verify
 
 ```bash
 ./mvnw clean verify
 ```
 
-Quando Docker Compose for adicionado:
+Tests that require PostgreSQL use Testcontainers and run when Docker is available.
 
-```bash
-docker compose up -d
-```
+## Contribution flow
 
----
+1. Read `AGENTS.md` and the relevant task in `TASKS.md`.
+2. Create one branch for one cohesive delivery: `<type>/TASK-<id>-<description>`.
+3. Implement the smallest complete vertical slice, including migration, authorization,
+   OpenAPI and tests when applicable.
+4. Run the verification command and update the task status only after it passes.
+5. Open a pull request; direct pushes to `main` are not allowed.
 
-# Qualidade
-
-Toda feature relevante deve possuir testes.
-
-Tipos esperados:
-
-- unitários;
-- integração;
-- segurança;
-- concorrência;
-- contrato.
-
-Integrações com PostgreSQL devem preferir Testcontainers.
-
----
-
-# Regras de contribuição
-
-Antes de implementar:
-
-1. Ler `AGENTS.md`.
-2. Encontrar a task correspondente em `TASKS.md`.
-3. Entender o domínio afetado.
-4. Implementar apenas o escopo necessário.
-5. Adicionar ou atualizar testes.
-6. Executar a suíte.
-7. Atualizar documentação quando necessário.
-
-Commits recomendados:
-
-```text
-feat: add workshop creation
-fix: prevent duplicate registrations
-test: cover concurrent registrations
-docs: update API setup
-```
-
----
-
-# Ordem de implementação
-
-A sequência inicial planejada é:
-
-```text
-Foundation
-↓
-Authentication
-↓
-Users
-↓
-Preferences
-↓
-Workshops
-↓
-Registrations
-↓
-Payments
-↓
-Feed
-↓
-Groups
-↓
-Chat
-↓
-Notifications
-↓
-Administration
-↓
-Metrics
-```
-
-O backlog detalhado está em `TASKS.md`.
-
----
-
-# Documentação
-
-Arquivos principais:
-
-```text
-AGENTS.md
-README.md
-TASKS.md
-```
-
-Documentação da API:
-
-```text
-OpenAPI / Swagger
-```
-
-Regras de negócio deverão permanecer explícitas e testáveis.
-
----
-
-# Repositório
-
-Organização do projeto:
-
-```text
-https://github.com/kaizen-workshop
-```
-
-O repositório esperado para esta API é:
-
-```text
-workshop_api
-```
+Business rules and implementation constraints are defined in [AGENTS.md](AGENTS.md).
