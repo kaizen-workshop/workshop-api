@@ -68,7 +68,7 @@ UserStatus: PENDING, ACTIVE, BLOCKED, INACTIVE
 Status:
 
 ```text
-[~]
+[x]
 ```
 
 Implement login by username or email, access/refresh JWT lifecycle, logout, mandatory

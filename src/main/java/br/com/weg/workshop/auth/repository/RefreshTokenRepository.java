@@ -1,0 +1,1 @@
+package br.com.weg.workshop.auth.repository; import br.com.weg.workshop.auth.domain.RefreshToken; import java.util.*; import org.springframework.data.jpa.repository.JpaRepository; public interface RefreshTokenRepository extends JpaRepository<RefreshToken,UUID>{Optional<RefreshToken> findByTokenHash(String tokenHash);}

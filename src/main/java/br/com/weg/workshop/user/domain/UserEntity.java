@@ -82,4 +82,9 @@ public class UserEntity {
         this.lastLoginAt = Instant.now();
         this.updatedAt = this.lastLoginAt;
     }
+
+    public void block() {
+        this.status = UserStatus.BLOCKED;
+        this.updatedAt = Instant.now();
+    }
 }
