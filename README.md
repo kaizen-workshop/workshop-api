@@ -492,9 +492,13 @@ Nunca adicionar segredos ao repositório.
 
 # Rodando localmente
 
-A configuração exata será adicionada durante a task inicial de setup.
+O perfil `dev` é o padrão e usa PostgreSQL. Inicie o banco local com Docker Compose:
 
-Fluxo esperado com Maven:
+```bash
+docker compose up -d
+```
+
+Depois, inicie a API:
 
 ```bash
 ./mvnw spring-boot:run
@@ -506,11 +510,9 @@ Testes:
 ./mvnw clean verify
 ```
 
-Quando Docker Compose for adicionado:
-
-```bash
-docker compose up -d
-```
+As configurações locais podem ser sobrescritas por `DB_URL`, `DB_USERNAME`,
+`DB_PASSWORD`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME` e `SMTP_PASSWORD`.
+Não use credenciais reais nos arquivos versionados.
 
 ---
 
