@@ -3,6 +3,7 @@ package br.com.weg.workshop.config;
 import br.com.weg.workshop.shared.error.ApiErrorFactory;
 import br.com.weg.workshop.shared.error.ApiErrorResponse;
 import br.com.weg.workshop.shared.error.ErrorCode;
+import br.com.weg.workshop.auth.security.JwtAuthenticationFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -16,6 +17,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -23,7 +25,8 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfiguration {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, ApiErrorFactory apiErrorFactory, ObjectMapper objectMapper)
+    SecurityFilterChain securityFilterChain(HttpSecurity http, ApiErrorFactory apiErrorFactory, ObjectMapper objectMapper,
+                                            JwtAuthenticationFilter jwtAuthenticationFilter)
             throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
@@ -33,6 +36,9 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                         .permitAll()
+                        .requestMatchers("/api/v1/auth/login").permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/arweg/**").hasAnyRole("ARWEG", "ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint((request, response, exception) -> writeError(
@@ -45,6 +51,7 @@ public class SecurityConfiguration {
                                 apiErrorFactory.create(request, HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN,
                                         "Access is denied.", List.of()),
                                 objectMapper)))
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 

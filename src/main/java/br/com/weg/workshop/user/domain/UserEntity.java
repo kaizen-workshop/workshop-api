@@ -69,4 +69,17 @@ public class UserEntity {
     public Role getRole() { return role; }
     public UserStatus getStatus() { return status; }
     public boolean isMustChangePassword() { return mustChangePassword; }
+    public String getPasswordHash() { return passwordHash; }
+
+    public void changePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+        this.mustChangePassword = false;
+        this.status = UserStatus.ACTIVE;
+        this.updatedAt = Instant.now();
+    }
+
+    public void recordLogin() {
+        this.lastLoginAt = Instant.now();
+        this.updatedAt = this.lastLoginAt;
+    }
 }

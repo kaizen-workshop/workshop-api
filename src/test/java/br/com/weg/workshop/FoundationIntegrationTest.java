@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import br.com.weg.workshop.shared.error.ConflictException;
 import br.com.weg.workshop.user.service.UserAdministrationService;
+import br.com.weg.workshop.auth.service.AuthenticationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,9 @@ class FoundationIntegrationTest {
 
     @MockBean
     private UserAdministrationService userAdministrationService;
+
+    @MockBean
+    private AuthenticationService authenticationService;
 
     @Test
     void healthEndpointIsPublicAndReportsUp() throws Exception {

@@ -2,3 +2,7 @@ spring:
   mail:
     host: localhost
     port: 1025
+app:
+  security:
+    jwt:
+      secret: c2VjdXJlLXRlc3Qta2V5LXdpdGgtYXQtbGVhc3QtMzItYnl0ZXMtbG9uZw==
