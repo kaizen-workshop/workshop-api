@@ -104,7 +104,7 @@ Category: id, name, description, active
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Deliver the workshop domain, migration, CRUD, details and paginated listing with the
