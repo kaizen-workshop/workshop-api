@@ -51,6 +51,18 @@ password, persists only its hash, marks password change as required and sends th
 initial-access email. Cover duplicate username/email conflicts, repository behavior,
 authorization, migration and OpenAPI.
 
+Domain contract:
+
+```text
+User
+    id, name, username, email, wegRegistration, phone, profileImage
+    passwordHash, role, status, mustChangePassword, lastLoginAt
+    createdAt, updatedAt
+
+Role: PARTICIPANT, ARWEG, ADMIN
+UserStatus: PENDING, ACTIVE, BLOCKED, INACTIVE
+```
+
 ### TASK-003 — Authentication, credentials and authorization
 
 Status:
@@ -78,6 +90,13 @@ Deliver the self-profile API, administrative themes and categories, and replacem
 user's selected themes. Users may edit only allowed personal fields; only active valid
 themes may be selected. Include migrations, authorization, validation and tests.
 
+Domain contract:
+
+```text
+Theme: id, name, description, active
+Category: id, name, description, active
+```
+
 ## Milestone 3 — Workshop catalogue
 
 ### TASK-005 — Workshop management and lifecycle
@@ -93,6 +112,17 @@ documented filters. ARWEG/ADMIN manage workshops; participants cannot view unaut
 drafts. Enforce date, time, registration-period and capacity rules plus the explicit
 state transitions `DRAFT`, `SCHEDULED`, `PUBLISHED`, `CLOSED`, `CANCELLED` and
 `ARCHIVED`. Include scheduled publishing, duplication and transition tests.
+
+Domain contract:
+
+```text
+Workshop
+    id, title, description, image, theme, category
+    startDate, endDate, startTime, endTime, location, modality, price
+    registrationStart, registrationEnd, maximumParticipants, paymentMethod
+    additionalInformation, status, scheduledPublishAt, publishedAt
+    createdBy, createdAt, updatedAt
+```
 
 ### TASK-006 — Workshop media and attachments
 
@@ -123,6 +153,15 @@ registration per user/workshop. Preserve waiting-list order and promote the firs
 eligible participant when a vacancy is released. The PostgreSQL implementation must
 prevent overbooking under concurrent requests and include that concurrency test.
 
+Domain contract:
+
+```text
+Registration
+    id, user, workshop, status, paymentStatus, registeredAt, cancelledAt
+
+RegistrationStatus: PENDING, CONFIRMED, WAITING_LIST, CANCELLED, REFUNDED
+```
+
 ### TASK-008 — Payments, cancellation and refunds
 
 Status:
@@ -135,6 +174,15 @@ Deliver the payment domain and a gateway-independent payment service. Support
 `PENDING`, `PAID`, `DECLINED`, `CANCELLED`, `REFUNDED` and `EXEMPT`, with auditable,
 idempotent state changes. Implement participant/authorized cancellation, eligibility and
 refund handling, and integrate vacancy release with TASK-007.
+
+Domain contract:
+
+```text
+Payment
+    id, registration, amount, status, method, externalReference, createdAt, updatedAt
+
+PaymentStatus: PENDING, PAID, DECLINED, CANCELLED, REFUNDED, EXEMPT
+```
 
 ## Milestone 5 — Participant experience
 
@@ -150,6 +198,15 @@ Deliver user workshop history, calendar filters and evaluations. Users evaluate 
 eligible completed workshops and only once per workshop. Include evaluation summaries
 for ARWEG, pagination and all ownership/eligibility checks.
 
+Domain contract:
+
+```text
+Evaluation
+    id, user, workshop, rating, comment
+    contentRating, instructorRating, organizationRating
+    createdAt, updatedAt
+```
+
 ### TASK-010 — Posts and personalized feed
 
 Status:
@@ -164,6 +221,14 @@ preferences, upcoming workshops, registration availability and recency. Return o
 content visible to the requesting user; use cursor pagination when it improves feed
 consistency.
 
+Domain contract:
+
+```text
+Post
+    id, title, content, image, workshop, category, status, highlight
+    scheduledAt, publishedAt, createdBy, createdAt, updatedAt
+```
+
 ### TASK-011 — Workshop groups and chat
 
 Status:
@@ -177,6 +242,13 @@ payment rule, and its lifecycle on cancellation/closure. Add cursor-paginated me
 moderation and WebSocket delivery; REST remains the persistent source of truth. Members
 must not send messages to an inactive group.
 
+Domain contract:
+
+```text
+Group: id, workshop
+Message: id, group, author, content, sentAt, editedAt, deletedAt
+```
+
 ### TASK-012 — Notifications
 
 Status:
@@ -188,6 +260,13 @@ Status:
 Deliver the in-app notification centre, automatic domain notifications and a replaceable
 push-provider abstraction. Support read/read-all, secure device registration, manual
 ARWEG communication and scheduling without coupling business rules to a provider.
+
+Domain contract:
+
+```text
+Notification
+    id, user, type, title, message, read, data, createdAt
+```
 
 ## Milestone 6 — Administration and insight
 
@@ -203,6 +282,8 @@ Deliver attendance, bulk updates, participant listing and CSV/XLSX exports, plus
 ARWEG dashboard. Restrict all administrative operations and support the documented
 filters for registration, payment and attendance status.
 
+Attendance statuses: `ATTENDED`, `NOT_ATTENDED`, `JUSTIFIED_ABSENCE` and `ABSENT`.
+
 ### TASK-014 — Metrics and administrative audit
 
 Status:
@@ -214,6 +295,12 @@ Status:
 Deliver workshop/post metrics and administrative audit history. Record relevant actor,
 action, entity, before/after values, timestamp and IP where available. Audit and metric
 queries must be paginated, filterable and ADMIN-protected.
+
+Audit contract:
+
+```text
+userId, action, entity, entityId, previousValue, newValue, timestamp, ip
+```
 
 ## Milestone 7 — Reliability and release
 
@@ -229,6 +316,9 @@ Add `createdAt`/`updatedAt`, incremental synchronization where needed, appropria
 caching and `Idempotency-Key` support for registration, cancellation, payment and
 refund. Design for retries and unstable mobile connections without duplicating critical
 operations.
+
+Synchronization contract: resources that need incremental sync expose `createdAt`,
+`updatedAt` and, when appropriate, an `updatedAfter` filter.
 
 ### TASK-016 — Hardening, observability and release readiness
 
