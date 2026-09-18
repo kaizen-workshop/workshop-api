@@ -6,6 +6,8 @@ import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -45,6 +47,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({ConflictException.class, DataIntegrityViolationException.class})
     public ResponseEntity<ApiErrorResponse> handleConflict(HttpServletRequest request, RuntimeException exception) {
         return response(request, HttpStatus.CONFLICT, ErrorCode.CONFLICT, "The request conflicts with the current state.", List.of());
+    }
+
+    @ExceptionHandler({AccessDeniedException.class, AuthorizationDeniedException.class})
+    public ResponseEntity<ApiErrorResponse> handleForbidden(HttpServletRequest request, RuntimeException exception) {
+        return response(request, HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN, "Access is denied.", List.of());
     }
 
     @ExceptionHandler(Exception.class)
