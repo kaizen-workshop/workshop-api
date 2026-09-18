@@ -34,7 +34,7 @@ Bearer tokens use `Authorization: Bearer <access-token>`. `/api/v1/admin/**` req
 - `LoginRequest`, `TokenResponse`, `ChangePasswordRequest`: login input, token output and password-change input.
 - `V3__create_auth_tokens.sql`: creates storage reserved for refresh and password-reset tokens.
 
-Refresh-token lifecycle, logout, password recovery and dedicated security tests are not implemented yet; TASK-003 remains in progress.
+Refresh-token rotation, logout and password recovery are implemented with opaque SHA-256-hashed tokens persisted in PostgreSQL. Password-reset requests always return `202` to avoid e-mail enumeration; reset tokens are single-use and expire after one hour. Dedicated authentication/security coverage is still pending, so TASK-003 remains in progress.
 
 ## Cross-cutting classes
 
