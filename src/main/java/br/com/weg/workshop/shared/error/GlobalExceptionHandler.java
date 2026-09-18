@@ -39,8 +39,8 @@ public class GlobalExceptionHandler {
         return response(request, HttpStatus.BAD_REQUEST, ErrorCode.INVALID_REQUEST, "Invalid request.", List.of());
     }
 
-    @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<ApiErrorResponse> handleNotFound(HttpServletRequest request, NoResourceFoundException exception) {
+    @ExceptionHandler({NoResourceFoundException.class, ResourceNotFoundException.class})
+    public ResponseEntity<ApiErrorResponse> handleNotFound(HttpServletRequest request, Exception exception) {
         return response(request, HttpStatus.NOT_FOUND, ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.", List.of());
     }
 
