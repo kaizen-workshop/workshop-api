@@ -42,7 +42,7 @@ Delivered:
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Implement the user domain, roles (`PARTICIPANT`, `ARWEG`, `ADMIN`), status, UUID
@@ -68,7 +68,7 @@ UserStatus: PENDING, ACTIVE, BLOCKED, INACTIVE
 Status:
 
 ```text
-[ ]
+[~]
 ```
 
 Implement login by username or email, access/refresh JWT lifecycle, logout, mandatory
