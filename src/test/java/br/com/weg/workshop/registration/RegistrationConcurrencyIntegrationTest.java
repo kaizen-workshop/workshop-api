@@ -46,7 +46,7 @@ class RegistrationConcurrencyIntegrationTest {
         Workshop workshop = Workshop.create(new WorkshopData("Concurrent workshop", "Description", null,
                 LocalDate.now().plusDays(2), LocalDate.now().plusDays(2), LocalTime.of(9, 0), LocalTime.of(10, 0),
                 "Room", WorkshopModality.IN_PERSON, BigDecimal.ZERO, Instant.now().minusSeconds(60),
-                Instant.now().plusSeconds(3600), 1, PaymentMethod.FREE, null), theme, category, creator);
+                Instant.now().plusSeconds(3600), 1, PaymentMethod.FREE, false, null), theme, category, creator);
         workshop.publish();
         workshops.saveAndFlush(workshop);
 

@@ -22,7 +22,7 @@ class FlywayPostgreSqlIntegrationTest {
     @Test
     void flywayAppliesWorkshopMigration() {
         Integer appliedMigrations = jdbcTemplate.queryForObject(
-                "select count(*) from workshop.flyway_schema_history where version = '7' and success = true",
+                "select count(*) from workshop.flyway_schema_history where version = '8' and success = true",
                 Integer.class);
 
         assertThat(appliedMigrations).isEqualTo(1);

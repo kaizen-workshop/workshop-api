@@ -3,6 +3,7 @@ package br.com.weg.workshop.registration.controller;
 import br.com.weg.workshop.registration.domain.RegistrationStatus;
 import br.com.weg.workshop.registration.dto.RegistrationResponse;
 import br.com.weg.workshop.registration.service.RegistrationService;
+import br.com.weg.workshop.payment.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import java.util.UUID;
 import org.springframework.data.domain.*;
@@ -16,9 +17,11 @@ import org.springframework.web.bind.annotation.*;
 public class RegistrationController {
 
     private final RegistrationService service;
+    private final PaymentService payments;
 
-    public RegistrationController(RegistrationService service) {
+    public RegistrationController(RegistrationService service, PaymentService payments) {
         this.service = service;
+        this.payments = payments;
     }
 
     @PostMapping("/api/v1/workshops/{workshopId}/registrations")
@@ -30,7 +33,7 @@ public class RegistrationController {
     @PatchMapping("/api/v1/registrations/{registrationId}/cancel")
     @Operation(summary = "Cancel the authenticated user's registration")
     public RegistrationResponse cancel(@PathVariable UUID registrationId, Authentication authentication) {
-        return service.cancel(userId(authentication), registrationId);
+        return payments.cancelRegistration(userId(authentication), registrationId);
     }
 
     @GetMapping("/api/v1/workshops/{workshopId}/registrations")

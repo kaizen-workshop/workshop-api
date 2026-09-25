@@ -74,6 +74,6 @@ class WorkshopMediaServiceTest {
         Category category = Category.create("Technology", null);
         return Workshop.create(new WorkshopData("Workshop", "Description", null, LocalDate.now().plusDays(3), LocalDate.now().plusDays(3),
                 LocalTime.of(9, 0), LocalTime.of(10, 0), "Room", WorkshopModality.IN_PERSON, BigDecimal.ZERO,
-                Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), 10, PaymentMethod.FREE, null), theme, category, creator);
+                Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200), 10, PaymentMethod.FREE, false, null), theme, category, creator);
     }
 }

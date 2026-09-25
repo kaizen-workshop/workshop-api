@@ -115,7 +115,7 @@ class RegistrationServiceTest {
         Category category = Category.create("Category " + UUID.randomUUID(), null);
         Workshop workshop = Workshop.create(new WorkshopData("Workshop", "Description", null, LocalDate.now().plusDays(3),
                 LocalDate.now().plusDays(3), LocalTime.of(9, 0), LocalTime.of(10, 0), "Room", WorkshopModality.IN_PERSON,
-                BigDecimal.ZERO, Instant.now().minusSeconds(60), Instant.now().plusSeconds(3600), capacity, paymentMethod, null),
+                BigDecimal.ZERO, Instant.now().minusSeconds(60), Instant.now().plusSeconds(3600), capacity, paymentMethod, false, null),
                 theme, category, creator);
         workshop.publish();
         return workshop;
