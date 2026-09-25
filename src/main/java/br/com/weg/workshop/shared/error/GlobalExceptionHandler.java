@@ -1,5 +1,6 @@
 package br.com.weg.workshop.shared.error;
 
+import br.com.weg.workshop.file.service.InvalidFileException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
@@ -12,6 +13,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
@@ -37,6 +39,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({ConstraintViolationException.class, IllegalArgumentException.class})
     public ResponseEntity<ApiErrorResponse> handleInvalidRequest(HttpServletRequest request, RuntimeException exception) {
         return response(request, HttpStatus.BAD_REQUEST, ErrorCode.INVALID_REQUEST, "Invalid request.", List.of());
+    }
+
+    @ExceptionHandler({InvalidFileException.class, MaxUploadSizeExceededException.class})
+    public ResponseEntity<ApiErrorResponse> handleInvalidFile(HttpServletRequest request, Exception exception) {
+        return response(request, HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.INVALID_FILE,
+                "The uploaded file is invalid.", List.of());
     }
 
     @ExceptionHandler({NoResourceFoundException.class, ResourceNotFoundException.class})

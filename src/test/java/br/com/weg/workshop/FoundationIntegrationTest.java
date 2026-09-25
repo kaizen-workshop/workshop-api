@@ -16,6 +16,7 @@ import br.com.weg.workshop.preference.service.CategoryService;
 import br.com.weg.workshop.preference.service.PreferenceService;
 import br.com.weg.workshop.preference.service.ThemeService;
 import br.com.weg.workshop.workshop.service.WorkshopService;
+import br.com.weg.workshop.file.service.WorkshopMediaService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -65,6 +66,9 @@ class FoundationIntegrationTest {
 
     @MockBean
     private WorkshopService workshopService;
+
+    @MockBean
+    private WorkshopMediaService workshopMediaService;
 
     @Test
     void healthEndpointIsPublicAndReportsUp() throws Exception {
