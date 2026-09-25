@@ -134,6 +134,16 @@ class FoundationIntegrationTest {
     }
 
     @Test
+    void registrationRequiresAuthenticationAndOnlyArwegCanManageWorkshopRegistrations() throws Exception {
+        mockMvc.perform(post("/api/v1/workshops/{id}/registrations", java.util.UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/workshops/{id}/registrations", java.util.UUID.randomUUID())
+                        .with(user("participant").roles("PARTICIPANT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void unauthorizedRoleReturnsStandardForbiddenError() throws Exception {
         mockMvc.perform(get("/api/v1/foundation-test/admin").with(user("participant").roles("PARTICIPANT")))
                 .andExpect(status().isForbidden())
