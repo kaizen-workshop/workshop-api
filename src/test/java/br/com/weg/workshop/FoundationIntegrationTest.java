@@ -17,6 +17,7 @@ import br.com.weg.workshop.preference.service.PreferenceService;
 import br.com.weg.workshop.preference.service.ThemeService;
 import br.com.weg.workshop.workshop.service.WorkshopService;
 import br.com.weg.workshop.file.service.WorkshopMediaService;
+import br.com.weg.workshop.registration.service.RegistrationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -69,6 +70,9 @@ class FoundationIntegrationTest {
 
     @MockBean
     private WorkshopMediaService workshopMediaService;
+
+    @MockBean
+    private RegistrationService registrationService;
 
     @Test
     void healthEndpointIsPublicAndReportsUp() throws Exception {
@@ -124,6 +128,16 @@ class FoundationIntegrationTest {
     @Test
     void participantCannotCreateWorkshop() throws Exception {
         mockMvc.perform(patch("/api/v1/workshops/{id}/publish", java.util.UUID.randomUUID())
+                        .with(user("participant").roles("PARTICIPANT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void registrationRequiresAuthenticationAndOnlyArwegCanManageWorkshopRegistrations() throws Exception {
+        mockMvc.perform(post("/api/v1/workshops/{id}/registrations", java.util.UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/workshops/{id}/registrations", java.util.UUID.randomUUID())
                         .with(user("participant").roles("PARTICIPANT")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));

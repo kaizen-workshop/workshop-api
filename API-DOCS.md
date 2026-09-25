@@ -23,6 +23,9 @@
 | `PATCH /api/v1/workshops/{id}/schedule` | Creator or `ADMIN` | Schedules publication. |
 | `PATCH /api/v1/workshops/{id}/publish`, `/close`, `/cancel`, `/archive` | Creator or `ADMIN` | Performs the corresponding valid lifecycle transition. |
 | `POST /api/v1/workshops/{id}/duplicate` | Creator or `ADMIN` | Creates a draft copy. |
+| `POST /api/v1/workshops/{id}/registrations` | Authenticated active user | Creates the caller's registration. Returns `201`; confirms a free registration, creates a pending paid registration or adds the caller to the waiting list when capacity is full. |
+| `PATCH /api/v1/registrations/{id}/cancel` | Registration owner | Cancels a valid registration. If it occupied capacity, promotes the first eligible waiting-list participant. |
+| `GET /api/v1/workshops/{id}/registrations` | Workshop creator or `ADMIN` | Lists workshop registrations, paginated and optionally filtered by registration `status`. |
 | `POST /api/v1/workshops/{id}/image` | Creator or `ADMIN` | Uploads or replaces the workshop image from multipart part `file`. Accepts JPEG, PNG and WebP up to 10 MB. Returns `200` with `WorkshopFileResponse`. |
 | `GET /api/v1/workshops/{id}/image/content` | Authenticated viewer | Downloads the stored workshop image. |
 | `DELETE /api/v1/workshops/{id}/image` | Creator or `ADMIN` | Deletes the workshop image. Returns `204`. |
@@ -85,6 +88,15 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `WorkshopMediaService` / `WorkshopMediaController`: manage uploads, replacement, listing, downloads and deletion. ARWEG owners and `ADMIN` may write; reads use the same workshop visibility rule as the catalogue. Invalid uploads return `422` with `INVALID_FILE`; unavailable or missing storage is not exposed with infrastructure details.
 - `WorkshopFileResponse`: returns attachment metadata without exposing its storage key or local filesystem location.
 - `V6__create_workshop_attachments.sql`: creates attachment metadata, size/format/checksum constraints, a unique main-image index and workshop lookup index.
+
+## Registration module — in progress
+
+- `Registration`: workshop participation record with UUID, user, workshop, registration status, payment status, registration/cancellation timestamps and audit timestamps. A partial unique index prevents more than one valid (`PENDING`, `CONFIRMED` or `WAITING_LIST`) registration per user and workshop.
+- `RegistrationStatus`: `PENDING`, `CONFIRMED`, `WAITING_LIST`, `CANCELLED`, `REFUNDED`. `RegistrationPaymentStatus` mirrors the payment lifecycle values required before TASK-008 introduces the payment aggregate.
+- `RegistrationService`: requires an `ACTIVE` user, a `PUBLISHED` workshop and an open registration period. It locks the workshop pessimistically during capacity decisions, so at most one concurrent request occupies the last vacancy. Free registrations are `CONFIRMED`/`EXEMPT`; PIX and credit-card registrations are `PENDING`/`PENDING` until the payment task completes. Waiting lists are enabled for every workshop in this initial flow and remain ordered by registration time.
+- Cancelling an occupying registration promotes the oldest `ACTIVE` user in the waiting list. Waiting registrations do not consume capacity. The workshop creator or `ADMIN` may list registrations; a participant can cancel only their own valid registration.
+- `RegistrationController` exposes the participant registration/cancellation flow and the ARWEG/ADMIN management listing. `V7__create_registrations.sql` contains the immutable schema, valid-state checks and supporting indexes.
+- `RegistrationConcurrencyIntegrationTest` uses PostgreSQL/Testcontainers to assert that two simultaneous requests for one vacancy result in exactly one occupying registration; it runs when Docker is available.
 
 ## Cross-cutting classes
 
