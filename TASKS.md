@@ -144,7 +144,7 @@ provider.
 Status:
 
 ```text
-[ ]
+[~]
 ```
 
 Deliver registration, cancellation-independent waiting list and ARWEG management flow.
