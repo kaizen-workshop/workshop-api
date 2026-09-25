@@ -148,6 +148,17 @@ class FoundationIntegrationTest {
     }
 
     @Test
+    void paymentCreationRequiresAuthenticationAndSimulationRequiresArweg() throws Exception {
+        mockMvc.perform(post("/api/v1/registrations/{id}/payments", java.util.UUID.randomUUID())
+                        .header("Idempotency-Key", java.util.UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(patch("/api/v1/payments/{id}/simulate/paid", java.util.UUID.randomUUID())
+                        .with(user("participant").roles("PARTICIPANT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void unauthorizedRoleReturnsStandardForbiddenError() throws Exception {
         mockMvc.perform(get("/api/v1/foundation-test/admin").with(user("participant").roles("PARTICIPANT")))
                 .andExpect(status().isForbidden())
