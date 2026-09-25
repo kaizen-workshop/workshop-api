@@ -34,7 +34,13 @@ springdoc:
     path: /swagger-ui.html
 
 app:
+  file-storage:
+    local-directory: ${FILE_STORAGE_LOCAL_DIRECTORY:./storage}
   security:
     jwt:
       secret: ${JWT_SECRET:}
       access-token-minutes: 15
+
+spring.servlet.multipart:
+  max-file-size: 10MB
+  max-request-size: 10MB

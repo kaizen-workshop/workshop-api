@@ -129,7 +129,7 @@ Workshop
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Create storage abstraction and workshop image/attachment flow without storing large
