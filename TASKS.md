@@ -167,7 +167,7 @@ RegistrationStatus: PENDING, CONFIRMED, WAITING_LIST, CANCELLED, REFUNDED
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Deliver the payment domain and a gateway-independent payment service. Support

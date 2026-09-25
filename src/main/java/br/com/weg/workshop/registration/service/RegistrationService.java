@@ -48,6 +48,11 @@ public class RegistrationService {
 
     @Transactional
     public RegistrationResponse cancel(UUID userId, UUID registrationId) {
+        return RegistrationResponse.from(cancelForPayment(userId, registrationId));
+    }
+
+    @Transactional
+    public Registration cancelForPayment(UUID userId, UUID registrationId) {
         Registration registration = registrations.findById(registrationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Registration not found."));
         if (!registration.getUser().getId().equals(userId)) {
@@ -62,7 +67,20 @@ public class RegistrationService {
         if (releasesVacancy) {
             promoteFirstEligible(workshop);
         }
-        return RegistrationResponse.from(registration);
+        return registration;
+    }
+
+    @Transactional
+    public Registration cancelAfterPaymentFailure(UUID registrationId) {
+        Registration registration = registrations.findById(registrationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Registration not found."));
+        Workshop workshop = lockedWorkshop(registration.getWorkshop().getId());
+        if (registration.getStatus() != RegistrationStatus.PENDING) {
+            throw new ConflictException("Only pending registrations can be declined.");
+        }
+        registration.cancel();
+        promoteFirstEligible(workshop);
+        return registration;
     }
 
     @Transactional(readOnly = true)

@@ -26,6 +26,9 @@
 | `POST /api/v1/workshops/{id}/registrations` | Authenticated active user | Creates the caller's registration. Returns `201`; confirms a free registration, creates a pending paid registration or adds the caller to the waiting list when capacity is full. |
 | `PATCH /api/v1/registrations/{id}/cancel` | Registration owner | Cancels a valid registration. If it occupied capacity, promotes the first eligible waiting-list participant. |
 | `GET /api/v1/workshops/{id}/registrations` | Workshop creator or `ADMIN` | Lists workshop registrations, paginated and optionally filtered by registration `status`. |
+| `POST /api/v1/registrations/{id}/payments` | Registration owner | Creates a simulated payment for a pending PIX/card registration. Requires a UUID `Idempotency-Key`; repeated use for the same registration returns the prior `PaymentResponse`. |
+| `PATCH /api/v1/payments/{id}/simulate/paid` | `ARWEG`, `ADMIN` | Simulates a successful internal gateway callback and confirms the registration. |
+| `PATCH /api/v1/payments/{id}/simulate/declined` | `ARWEG`, `ADMIN` | Simulates a declined internal gateway callback, cancels the registration and releases its vacancy. |
 | `POST /api/v1/workshops/{id}/image` | Creator or `ADMIN` | Uploads or replaces the workshop image from multipart part `file`. Accepts JPEG, PNG and WebP up to 10 MB. Returns `200` with `WorkshopFileResponse`. |
 | `GET /api/v1/workshops/{id}/image/content` | Authenticated viewer | Downloads the stored workshop image. |
 | `DELETE /api/v1/workshops/{id}/image` | Creator or `ADMIN` | Deletes the workshop image. Returns `204`. |
@@ -73,7 +76,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 
 ## Workshop module
 
-- `Workshop`: catalogue entity associated with active `Theme`, `Category` and the creating user. It stores scheduling, registration window, capacity, modality, price, payment method, image reference and audit fields.
+- `Workshop`: catalogue entity associated with active `Theme`, `Category` and the creating user. It stores scheduling, registration window, capacity, modality, price, payment method, `championship` flag, image reference and audit fields. The championship flag controls the refund exception and defaults to `false` for existing workshops.
 - `WorkshopStatus`: `DRAFT`, `SCHEDULED`, `PUBLISHED`, `CLOSED`, `CANCELLED`, `ARCHIVED`. Allowed transitions are `DRAFT -> SCHEDULED|PUBLISHED`, `SCHEDULED -> PUBLISHED`, `PUBLISHED -> CLOSED|CANCELLED` and `CLOSED -> ARCHIVED`.
 - `WorkshopService`: validates workshop periods and active taxonomy references, restricts non-public visibility to the creator or admin, centralizes transitions, duplication and scheduled publication.
 - `WorkshopController`: uses authenticated JWT identity for ownership. `ARWEG` and `ADMIN` manage workshops; `ADMIN` can manage every workshop and ARWEG only its own.
@@ -89,7 +92,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `WorkshopFileResponse`: returns attachment metadata without exposing its storage key or local filesystem location.
 - `V6__create_workshop_attachments.sql`: creates attachment metadata, size/format/checksum constraints, a unique main-image index and workshop lookup index.
 
-## Registration module — in progress
+## Registration module
 
 - `Registration`: workshop participation record with UUID, user, workshop, registration status, payment status, registration/cancellation timestamps and audit timestamps. A partial unique index prevents more than one valid (`PENDING`, `CONFIRMED` or `WAITING_LIST`) registration per user and workshop.
 - `RegistrationStatus`: `PENDING`, `CONFIRMED`, `WAITING_LIST`, `CANCELLED`, `REFUNDED`. `RegistrationPaymentStatus` mirrors the payment lifecycle values required before TASK-008 introduces the payment aggregate.
@@ -97,6 +100,15 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - Cancelling an occupying registration promotes the oldest `ACTIVE` user in the waiting list. Waiting registrations do not consume capacity. The workshop creator or `ADMIN` may list registrations; a participant can cancel only their own valid registration.
 - `RegistrationController` exposes the participant registration/cancellation flow and the ARWEG/ADMIN management listing. `V7__create_registrations.sql` contains the immutable schema, valid-state checks and supporting indexes.
 - `RegistrationConcurrencyIntegrationTest` uses PostgreSQL/Testcontainers to assert that two simultaneous requests for one vacancy result in exactly one occupying registration; it runs when Docker is available.
+
+## Payment module
+
+- `Payment`: one payment per registration, with amount, payment method, simulated external reference, idempotency key and lifecycle state. Valid transitions are `PENDING -> PAID|DECLINED|CANCELLED` and `PAID -> REFUNDED`.
+- `PaymentEvent`: immutable audit record for payment creation and every state transition; it preserves previous/current status, gateway reference and occurrence time.
+- `PaymentGateway`: provider-neutral port. `SimulatedPaymentGateway` is the current internal study implementation and creates opaque `simulated-*` references without calling an external provider.
+- `PaymentService`: creates payments only for the owner of a pending PIX/card registration. It uses the required `Idempotency-Key` to safely return prior requests and avoids duplicate payments per registration. ARWEG/Admin simulation endpoints confirm or decline a payment.
+- Cancellation retains the registration flow from TASK-007 and settles the payment in the same transaction: a pending payment is cancelled; a paid registration is refunded only when the workshop starts in more than 48 hours or it is marked as a championship. At exactly 48 hours or later, non-championship cancellations keep the payment as `PAID` and receive no refund. Payment failure or cancellation releases the occupied vacancy and promotes the waiting list through the registration service.
+- `V8__add_championship_and_payments.sql`: adds the immutable `championship` workshop flag plus payment/event tables, unique idempotency and registration constraints, valid-status checks and audit index.
 
 ## Cross-cutting classes
 

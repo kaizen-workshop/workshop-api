@@ -71,6 +71,20 @@ public class Registration {
         updatedAt = Instant.now();
     }
 
+    public void confirmPayment() {
+        status = RegistrationStatus.CONFIRMED;
+        paymentStatus = RegistrationPaymentStatus.PAID;
+        updatedAt = Instant.now();
+    }
+
+    public void markPaymentDeclined() {
+        paymentStatus = RegistrationPaymentStatus.DECLINED;
+        updatedAt = Instant.now();
+    }
+
+    public void markPaymentPaid() { paymentStatus = RegistrationPaymentStatus.PAID; updatedAt = Instant.now(); }
+    public void markPaymentRefunded() { paymentStatus = RegistrationPaymentStatus.REFUNDED; updatedAt = Instant.now(); }
+
     public UUID getId() { return id; }
     public UserEntity getUser() { return user; }
     public Workshop getWorkshop() { return workshop; }
