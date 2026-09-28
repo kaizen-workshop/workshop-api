@@ -36,6 +36,11 @@
 | `GET /api/v1/workshops/{id}/attachments` | Authenticated viewer | Lists attachment metadata in creation order. |
 | `GET /api/v1/workshops/{id}/attachments/{attachmentId}/content` | Authenticated viewer | Downloads an attachment. |
 | `DELETE /api/v1/workshops/{id}/attachments/{attachmentId}` | Creator or `ADMIN` | Deletes an attachment. Returns `204`. |
+| `GET /api/v1/users/me/workshops/history` | Authenticated | Lists the caller's completed confirmed/refunded workshop history, paginated. |
+| `GET /api/v1/users/me/workshops/calendar` | Authenticated | Lists the caller's pending or confirmed workshops, paginated, with optional inclusive `from`/`to` start-date filters. |
+| `POST /api/v1/workshops/{id}/evaluations` | Authenticated eligible participant | Creates the caller's single evaluation for a completed workshop. Returns `201`. |
+| `GET /api/v1/workshops/{id}/evaluations` | Workshop creator or `ADMIN` | Lists a managed workshop's evaluations, paginated. |
+| `GET /api/v1/workshops/{id}/evaluations/summary` | Workshop creator or `ADMIN` | Returns count and average overall/content/instructor/organization ratings. |
 | `GET /actuator/health` | Public | Health check. |
 | `GET /v3/api-docs`, `/swagger-ui.html` | Public | OpenAPI document and Swagger UI. |
 
@@ -109,6 +114,14 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `PaymentService`: creates payments only for the owner of a pending PIX/card registration. It uses the required `Idempotency-Key` to safely return prior requests and avoids duplicate payments per registration. ARWEG/Admin simulation endpoints confirm or decline a payment.
 - Cancellation retains the registration flow from TASK-007 and settles the payment in the same transaction: a pending payment is cancelled; a paid registration is refunded only when the workshop starts in more than 48 hours or it is marked as a championship. At exactly 48 hours or later, non-championship cancellations keep the payment as `PAID` and receive no refund. Payment failure or cancellation releases the occupied vacancy and promotes the waiting list through the registration service.
 - `V8__add_championship_and_payments.sql`: adds the immutable `championship` workshop flag plus payment/event tables, unique idempotency and registration constraints, valid-status checks and audit index.
+
+## Evaluation module — in progress
+
+- `ParticipantWorkshopController` exposes the authenticated user's paginated completed-workshop history and calendar. The history includes confirmed or refunded registrations whose workshop end date has passed; the calendar includes pending or confirmed registrations and validates that `to` is not before `from`.
+- `Evaluation`: one rating/comment record per user and workshop, with separate overall, content, instructor and organization ratings, immutable creation time and update time. `V9__create_evaluations.sql` enforces the one-evaluation constraint and 1–5 ratings.
+- `EvaluationService` only accepts an evaluation from a confirmed participant after the workshop's end date. Workshop creators and admins can view evaluation pages and aggregate summaries; other ARWEG users receive the normal concealed not-found result for unmanaged workshops.
+- `CreateEvaluationRequest`, `EvaluationResponse` and `EvaluationSummaryResponse` are DTO-only API contracts; the JPA entity is never exposed.
+
 
 ## Cross-cutting classes
 

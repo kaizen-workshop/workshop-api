@@ -191,7 +191,7 @@ PaymentStatus: PENDING, PAID, DECLINED, CANCELLED, REFUNDED, EXEMPT
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Deliver user workshop history, calendar filters and evaluations. Users evaluate only

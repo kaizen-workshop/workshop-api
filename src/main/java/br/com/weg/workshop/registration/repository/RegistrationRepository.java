@@ -2,6 +2,7 @@ package br.com.weg.workshop.registration.repository;
 
 import br.com.weg.workshop.registration.domain.*;
 import java.util.*;
+import java.time.LocalDate;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
@@ -17,4 +18,16 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
 
     @Query("select r from Registration r where r.workshop.id = :workshopId and (:status is null or r.status = :status)")
     Page<Registration> findByWorkshop(@Param("workshopId") UUID workshopId, @Param("status") RegistrationStatus status, Pageable pageable);
+
+    @Query("select r from Registration r where r.user.id = :userId and r.status in :statuses "
+            + "and r.workshop.endDate < :today")
+    Page<Registration> findCompletedByUser(@Param("userId") UUID userId,
+                                           @Param("statuses") Collection<RegistrationStatus> statuses,
+                                           @Param("today") LocalDate today, Pageable pageable);
+
+    @Query("select r from Registration r where r.user.id = :userId and r.status in :statuses "
+            + "and (:from is null or r.workshop.startDate >= :from) and (:to is null or r.workshop.startDate <= :to)")
+    Page<Registration> findCalendarByUser(@Param("userId") UUID userId,
+                                          @Param("statuses") Collection<RegistrationStatus> statuses,
+                                          @Param("from") LocalDate from, @Param("to") LocalDate to, Pageable pageable);
 }
