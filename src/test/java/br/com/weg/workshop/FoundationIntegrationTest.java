@@ -19,6 +19,8 @@ import br.com.weg.workshop.workshop.service.WorkshopService;
 import br.com.weg.workshop.file.service.WorkshopMediaService;
 import br.com.weg.workshop.registration.service.RegistrationService;
 import br.com.weg.workshop.payment.service.PaymentService;
+import br.com.weg.workshop.evaluation.service.EvaluationService;
+import br.com.weg.workshop.evaluation.service.ParticipantWorkshopService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -77,6 +79,13 @@ class FoundationIntegrationTest {
 
     @MockBean
     private PaymentService paymentService;
+
+    @MockBean
+    private EvaluationService evaluationService;
+
+    @MockBean
+    private ParticipantWorkshopService participantWorkshopService;
+
 
     @Test
     void healthEndpointIsPublicAndReportsUp() throws Exception {
