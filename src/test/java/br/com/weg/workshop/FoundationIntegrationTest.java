@@ -21,6 +21,7 @@ import br.com.weg.workshop.registration.service.RegistrationService;
 import br.com.weg.workshop.payment.service.PaymentService;
 import br.com.weg.workshop.evaluation.service.EvaluationService;
 import br.com.weg.workshop.evaluation.service.ParticipantWorkshopService;
+import br.com.weg.workshop.post.service.PostService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -85,6 +86,9 @@ class FoundationIntegrationTest {
 
     @MockBean
     private ParticipantWorkshopService participantWorkshopService;
+
+    @MockBean
+    private PostService postService;
 
 
     @Test
