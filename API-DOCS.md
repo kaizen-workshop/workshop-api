@@ -41,6 +41,11 @@
 | `POST /api/v1/workshops/{id}/evaluations` | Authenticated eligible participant | Creates the caller's single evaluation for a completed workshop. Returns `201`. |
 | `GET /api/v1/workshops/{id}/evaluations` | Workshop creator or `ADMIN` | Lists a managed workshop's evaluations, paginated. |
 | `GET /api/v1/workshops/{id}/evaluations/summary` | Workshop creator or `ADMIN` | Returns count and average overall/content/instructor/organization ratings. |
+| `POST /api/v1/posts`, `PUT /api/v1/posts/{id}` | `ARWEG`, `ADMIN` | Creates or updates a draft post owned by the caller (or any post for ADMIN). |
+| `PATCH /api/v1/posts/{id}/schedule`, `/publish`, `/archive` | Post owner or `ADMIN` | Applies a valid publication lifecycle transition. |
+| `GET /api/v1/posts/feed` | Authenticated | Lists published posts, paginated by published time; highlights are returned as feed metadata. |
+| `PUT` / `DELETE /api/v1/posts/{id}/like` | Authenticated | Adds/removes the caller's idempotent like. |
+| `POST` / `GET /api/v1/posts/{id}/comments` | Authenticated | Creates or paginates comments on a published post. |
 | `GET /actuator/health` | Public | Health check. |
 | `GET /v3/api-docs`, `/swagger-ui.html` | Public | OpenAPI document and Swagger UI. |
 
@@ -121,6 +126,13 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `Evaluation`: one rating/comment record per user and workshop, with separate overall, content, instructor and organization ratings, immutable creation time and update time. `V9__create_evaluations.sql` enforces the one-evaluation constraint and 1–5 ratings.
 - `EvaluationService` only accepts an evaluation from a confirmed participant after the workshop's end date. Workshop creators and admins can view evaluation pages and aggregate summaries; other ARWEG users receive the normal concealed not-found result for unmanaged workshops.
 - `CreateEvaluationRequest`, `EvaluationResponse` and `EvaluationSummaryResponse` are DTO-only API contracts; the JPA entity is never exposed.
+
+## Post and feed module
+
+- `Post` supports `DRAFT`, `SCHEDULED`, `PUBLISHED` and `ARCHIVED`; only owners or admins manage it. A scheduled worker publishes due posts every minute, configurable with `app.posts.publication-interval-ms`.
+- Published posts are the only posts readable through feed, likes and comments. `PostLike` has a composite database key to prevent duplicate likes; comments are separately paginated.
+- `PostService` keeps post ownership and transition checks in the service layer. The deterministic feed ranks highlighted posts, the caller's selected workshop themes, upcoming workshops with open registration, then recency; it returns highlight/like metadata without exposing drafts or scheduled content.
+- `V10__create_posts.sql` adds posts, likes and comments with lifecycle constraints and feed/comment indexes.
 
 
 ## Cross-cutting classes

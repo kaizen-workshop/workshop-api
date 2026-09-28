@@ -212,7 +212,7 @@ Evaluation
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Deliver ARWEG/ADMIN post management, publishing/scheduling, likes, comments and the

@@ -1,0 +1,1 @@
+package br.com.weg.workshop.post.dto; import jakarta.validation.constraints.Future; import jakarta.validation.constraints.NotNull; import java.time.Instant; public record SchedulePostRequest(@NotNull @Future Instant scheduledAt) { }
