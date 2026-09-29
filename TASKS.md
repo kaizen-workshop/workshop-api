@@ -234,7 +234,7 @@ Post
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Deliver exactly one group per workshop, membership derived from a valid registration and
@@ -249,12 +249,16 @@ Group: id, workshop
 Message: id, group, author, content, sentAt, editedAt, deletedAt
 ```
 
+Delivered with one database-constrained group per workshop, lifecycle integration,
+registration/payment-derived membership, REST cursor pagination, author editing,
+soft-delete moderation and authenticated STOMP delivery backed by persisted messages.
+
 ### TASK-012 — Notifications
 
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Deliver the in-app notification centre, automatic domain notifications and a replaceable
@@ -268,6 +272,10 @@ Notification
     id, user, type, title, message, read, data, createdAt
 ```
 
+Delivered with a paginated persistent centre, read/read-all, automatic
+registration/waiting-list/payment events, secure device ownership, replaceable
+push provider, manual ARWEG communication and scheduled delivery.
+
 ## Milestone 6 — Administration and insight
 
 ### TASK-013 — Workshop administration
@@ -275,7 +283,7 @@ Notification
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Deliver attendance, bulk updates, participant listing and CSV/XLSX exports, plus the
@@ -283,6 +291,10 @@ ARWEG dashboard. Restrict all administrative operations and support the document
 filters for registration, payment and attendance status.
 
 Attendance statuses: `ATTENDED`, `NOT_ATTENDED`, `JUSTIFIED_ABSENCE` and `ABSENT`.
+
+Delivered with creator/admin-scoped participant queries, registration/payment/
+attendance filters, atomic bulk attendance with actor/timestamp audit fields, UTF-8
+CSV and Office Open XML XLSX exports, plus a scoped ARWEG dashboard.
 
 ### TASK-014 — Metrics and administrative audit
 
@@ -309,7 +321,7 @@ userId, action, entity, entityId, previousValue, newValue, timestamp, ip
 Status:
 
 ```text
-[ ]
+[~]
 ```
 
 Add `createdAt`/`updatedAt`, incremental synchronization where needed, appropriate HTTP
@@ -319,6 +331,20 @@ operations.
 
 Synchronization contract: resources that need incremental sync expose `createdAt`,
 `updatedAt` and, when appropriate, an `updatedAfter` filter.
+
+Delivered so far:
+
+- registration creation requires a persisted per-user `Idempotency-Key`, serializes
+  concurrent retries and returns the original result for the same operation;
+- `GET /api/v1/workshops/{workshopId}/registrations/me` lets the mobile client reconcile
+  the caller's latest registration without listing another user's data;
+- registration responses expose a stable waiting-list position and reflect promotion on
+  the next reconciliation;
+- migrations, OpenAPI documentation, security boundaries and automated tests cover these
+  increments.
+
+Remaining: cancellation, payment/refund idempotency, HTTP caching and broader incremental
+synchronization.
 
 ### TASK-016 — Hardening, observability and release readiness
 

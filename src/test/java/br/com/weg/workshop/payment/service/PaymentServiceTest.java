@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import br.com.weg.workshop.payment.domain.*;
+import br.com.weg.workshop.notification.service.NotificationService;
 import br.com.weg.workshop.payment.gateway.PaymentGateway;
 import br.com.weg.workshop.payment.repository.*;
 import br.com.weg.workshop.preference.domain.*;
@@ -29,11 +30,13 @@ class PaymentServiceTest {
     @Mock RegistrationRepository registrations;
     @Mock RegistrationService registrationService;
     @Mock PaymentGateway gateway;
+    @Mock NotificationService notifications;
     private PaymentService service;
 
     @BeforeEach
     void setUp() {
-        service = new PaymentService(payments, events, registrations, registrationService, gateway, "America/Sao_Paulo");
+        service = new PaymentService(payments, events, registrations, registrationService, gateway, notifications,
+                "America/Sao_Paulo");
     }
 
     @Test

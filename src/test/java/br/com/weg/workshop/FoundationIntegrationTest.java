@@ -22,6 +22,11 @@ import br.com.weg.workshop.payment.service.PaymentService;
 import br.com.weg.workshop.evaluation.service.EvaluationService;
 import br.com.weg.workshop.evaluation.service.ParticipantWorkshopService;
 import br.com.weg.workshop.post.service.PostService;
+import br.com.weg.workshop.group.service.GroupService;
+import br.com.weg.workshop.group.service.GroupLifecycleService;
+import br.com.weg.workshop.chat.service.ChatService;
+import br.com.weg.workshop.notification.service.NotificationService;
+import br.com.weg.workshop.administration.service.WorkshopAdministrationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -90,6 +95,21 @@ class FoundationIntegrationTest {
     @MockBean
     private PostService postService;
 
+    @MockBean
+    private GroupService groupService;
+
+    @MockBean
+    private ChatService chatService;
+
+    @MockBean
+    private GroupLifecycleService groupLifecycleService;
+
+    @MockBean
+    private NotificationService notificationService;
+
+    @MockBean
+    private WorkshopAdministrationService workshopAdministrationService;
+
 
     @Test
     void healthEndpointIsPublicAndReportsUp() throws Exception {
@@ -143,6 +163,36 @@ class FoundationIntegrationTest {
     }
 
     @Test
+    void groupsAndChatRequireAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/groups"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/groups/{id}/messages", java.util.UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void notificationsRequireAuthenticationAndManualCommunicationRequiresArweg() throws Exception {
+        mockMvc.perform(get("/api/v1/notifications"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/arweg/notifications")
+                        .with(user("participant").roles("PARTICIPANT"))
+                        .contentType("application/json")
+                        .content("{\"userIds\":[\"" + java.util.UUID.randomUUID()
+                                + "\"],\"title\":\"Notice\",\"message\":\"Message\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void workshopAdministrationRequiresArweg() throws Exception {
+        mockMvc.perform(get("/api/v1/arweg/dashboard")
+                        .with(user(java.util.UUID.randomUUID().toString()).roles("PARTICIPANT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mockMvc.perform(get("/api/v1/arweg/workshops/{id}/participants", java.util.UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void participantCannotCreateWorkshop() throws Exception {
         mockMvc.perform(patch("/api/v1/workshops/{id}/publish", java.util.UUID.randomUUID())
                         .with(user("participant").roles("PARTICIPANT")))
@@ -158,6 +208,10 @@ class FoundationIntegrationTest {
                         .with(user("participant").roles("PARTICIPANT")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mockMvc.perform(post("/api/v1/workshops/{id}/registrations", java.util.UUID.randomUUID())
+                        .with(user(java.util.UUID.randomUUID().toString()).roles("PARTICIPANT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
     @Test

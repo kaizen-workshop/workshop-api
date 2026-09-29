@@ -5,4 +5,6 @@ public interface WorkshopRepository extends JpaRepository<Workshop,UUID> {
  @Query("select w from Workshop w where (w.status = 'PUBLISHED' or w.createdBy.id = :userId or :admin = true) and (:status is null or w.status = :status) and (:themeId is null or w.theme.id = :themeId) and (:categoryId is null or w.category.id = :categoryId)")
  Page<Workshop> findVisible(@Param("userId") UUID userId,@Param("admin") boolean admin,@Param("status") WorkshopStatus status,@Param("themeId") UUID themeId,@Param("categoryId") UUID categoryId, Pageable pageable);
  List<Workshop> findByStatusAndScheduledPublishAtLessThanEqual(WorkshopStatus status, Instant instant);
+ @Query("select count(w) from Workshop w where (:admin = true or w.createdBy.id = :managerId) and (:status is null or w.status = :status)")
+ long countManaged(@Param("managerId") UUID managerId,@Param("admin") boolean admin,@Param("status") WorkshopStatus status);
 }

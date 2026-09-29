@@ -1,6 +1,8 @@
 package br.com.weg.workshop.payment.service;
 
 import br.com.weg.workshop.payment.domain.*;
+import br.com.weg.workshop.notification.domain.NotificationType;
+import br.com.weg.workshop.notification.service.NotificationService;
 import br.com.weg.workshop.payment.dto.PaymentResponse;
 import br.com.weg.workshop.payment.gateway.PaymentGateway;
 import br.com.weg.workshop.payment.repository.*;
@@ -25,12 +27,15 @@ public class PaymentService {
     private final RegistrationService registrationService;
     private final PaymentGateway gateway;
     private final ZoneId workshopZone;
+    private final NotificationService notifications;
 
     public PaymentService(PaymentRepository payments, PaymentEventRepository events, RegistrationRepository registrations,
                           RegistrationService registrationService, PaymentGateway gateway,
+                          NotificationService notifications,
                           @Value("${app.workshop.time-zone:America/Sao_Paulo}") String workshopTimeZone) {
         this.payments = payments; this.events = events; this.registrations = registrations;
-        this.registrationService = registrationService; this.gateway = gateway; this.workshopZone = ZoneId.of(workshopTimeZone);
+        this.registrationService = registrationService; this.gateway = gateway; this.notifications = notifications;
+        this.workshopZone = ZoneId.of(workshopTimeZone);
     }
 
     @Transactional
@@ -68,6 +73,10 @@ public class PaymentService {
         payment.markPaid();
         payment.getRegistration().confirmPayment();
         events.save(PaymentEvent.create(payment, previous));
+        notifications.notify(payment.getRegistration().getUser().getId(), NotificationType.PAYMENT_CONFIRMED,
+                "Payment confirmed", "Your workshop payment was confirmed.",
+                java.util.Map.of("paymentId", payment.getId().toString(),
+                        "registrationId", payment.getRegistration().getId().toString()));
         return PaymentResponse.from(payment);
     }
 
@@ -79,6 +88,10 @@ public class PaymentService {
         Registration registration = registrationService.cancelAfterPaymentFailure(payment.getRegistration().getId());
         registration.markPaymentDeclined();
         events.save(PaymentEvent.create(payment, previous));
+        notifications.notify(payment.getRegistration().getUser().getId(), NotificationType.PAYMENT_DECLINED,
+                "Payment declined", "Your workshop payment was declined.",
+                java.util.Map.of("paymentId", payment.getId().toString(),
+                        "registrationId", payment.getRegistration().getId().toString()));
         return PaymentResponse.from(payment);
     }
 

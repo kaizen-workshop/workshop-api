@@ -1,6 +1,8 @@
 package br.com.weg.workshop.registration.service;
 
 import br.com.weg.workshop.registration.domain.*;
+import br.com.weg.workshop.notification.domain.NotificationType;
+import br.com.weg.workshop.notification.service.NotificationService;
 import br.com.weg.workshop.registration.dto.RegistrationResponse;
 import br.com.weg.workshop.registration.repository.RegistrationRepository;
 import br.com.weg.workshop.shared.error.*;
@@ -25,30 +27,64 @@ public class RegistrationService {
     private final RegistrationRepository registrations;
     private final WorkshopRepository workshops;
     private final UserRepository users;
+    private final NotificationService notifications;
 
-    public RegistrationService(RegistrationRepository registrations, WorkshopRepository workshops, UserRepository users) {
+    public RegistrationService(RegistrationRepository registrations, WorkshopRepository workshops, UserRepository users,
+                               NotificationService notifications) {
         this.registrations = registrations;
         this.workshops = workshops;
         this.users = users;
+        this.notifications = notifications;
     }
 
     @Transactional
     public RegistrationResponse register(UUID userId, UUID workshopId) {
+        return register(userId, workshopId, UUID.randomUUID());
+    }
+
+    @Transactional
+    public RegistrationResponse register(UUID userId, UUID workshopId, UUID idempotencyKey) {
+        if (idempotencyKey == null) throw new IllegalArgumentException("Idempotency-Key is required.");
         UserEntity user = activeUser(userId);
+        RegistrationResponse existing = idempotentResult(userId, workshopId, idempotencyKey);
+        if (existing != null) return existing;
         Workshop workshop = lockedWorkshop(workshopId);
+        existing = idempotentResult(userId, workshopId, idempotencyKey);
+        if (existing != null) return existing;
         validateRegistrable(workshop);
         if (registrations.existsByUserIdAndWorkshopIdAndStatusIn(userId, workshopId, VALID_STATUSES)) {
             throw new ConflictException("User already has a valid registration for this workshop.");
         }
 
         RegistrationStatus status = hasVacancy(workshop) ? registrationStatus(workshop) : RegistrationStatus.WAITING_LIST;
-        Registration registration = Registration.create(user, workshop, status, paymentStatus(workshop));
-        return RegistrationResponse.from(registrations.save(registration));
+        Registration registration = Registration.create(user, workshop, status, paymentStatus(workshop), idempotencyKey);
+        Registration saved = registrations.save(registration);
+        NotificationType type = status == RegistrationStatus.WAITING_LIST
+                ? NotificationType.WAITING_LIST_JOINED : NotificationType.REGISTRATION_CREATED;
+        notifications.notify(userId, type, "Workshop registration", registrationMessage(status),
+                Map.of("workshopId", workshopId.toString(), "registrationId", saved.getId().toString()));
+        return response(saved);
+    }
+
+    private RegistrationResponse idempotentResult(UUID userId, UUID workshopId, UUID idempotencyKey) {
+        Registration existing = registrations.findByUserIdAndIdempotencyKey(userId, idempotencyKey).orElse(null);
+        if (existing == null) return null;
+        if (!existing.getWorkshop().getId().equals(workshopId)) {
+            throw new ConflictException("Idempotency-Key was already used for another workshop.");
+        }
+        return response(existing);
     }
 
     @Transactional
     public RegistrationResponse cancel(UUID userId, UUID registrationId) {
         return RegistrationResponse.from(cancelForPayment(userId, registrationId));
+    }
+
+    @Transactional(readOnly = true)
+    public RegistrationResponse currentForWorkshop(UUID userId, UUID workshopId) {
+        return registrations.findFirstByUserIdAndWorkshopIdOrderByCreatedAtDesc(userId, workshopId)
+                .map(this::response)
+                .orElseThrow(() -> new ResourceNotFoundException("Registration not found."));
     }
 
     @Transactional
@@ -95,8 +131,12 @@ public class RegistrationService {
     }
 
     private void promoteFirstEligible(Workshop workshop) {
-        registrations.findFirstEligibleWaitingListEntry(workshop.getId()).ifPresent(waiting ->
-                waiting.promote(registrationStatus(workshop), paymentStatus(workshop)));
+        registrations.findFirstEligibleWaitingListEntry(workshop.getId()).ifPresent(waiting -> {
+            waiting.promote(registrationStatus(workshop), paymentStatus(workshop));
+            notifications.notify(waiting.getUser().getId(), NotificationType.WAITING_LIST_PROMOTED,
+                    "Waiting list update", "Your registration was promoted from the waiting list.",
+                    Map.of("workshopId", workshop.getId().toString(), "registrationId", waiting.getId().toString()));
+        });
     }
 
     private boolean hasVacancy(Workshop workshop) {
@@ -129,10 +169,25 @@ public class RegistrationService {
     }
 
     private UserEntity activeUser(UUID userId) {
-        UserEntity user = users.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User not found."));
+        UserEntity user = users.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found."));
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new ConflictException("Only active users can register.");
         }
         return user;
+    }
+
+    private String registrationMessage(RegistrationStatus status) {
+        return status == RegistrationStatus.WAITING_LIST
+                ? "You joined the workshop waiting list."
+                : "Your workshop registration was created.";
+    }
+
+    private RegistrationResponse response(Registration registration) {
+        Long waitingListPosition = registration.getStatus() == RegistrationStatus.WAITING_LIST
+                ? registrations.countWaitingAhead(registration.getWorkshop().getId(), registration.getRegisteredAt(),
+                        registration.getId()) + 1
+                : null;
+        return RegistrationResponse.from(registration, waitingListPosition);
     }
 }

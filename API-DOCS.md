@@ -23,7 +23,8 @@
 | `PATCH /api/v1/workshops/{id}/schedule` | Creator or `ADMIN` | Schedules publication. |
 | `PATCH /api/v1/workshops/{id}/publish`, `/close`, `/cancel`, `/archive` | Creator or `ADMIN` | Performs the corresponding valid lifecycle transition. |
 | `POST /api/v1/workshops/{id}/duplicate` | Creator or `ADMIN` | Creates a draft copy. |
-| `POST /api/v1/workshops/{id}/registrations` | Authenticated active user | Creates the caller's registration. Returns `201`; confirms a free registration, creates a pending paid registration or adds the caller to the waiting list when capacity is full. |
+| `POST /api/v1/workshops/{id}/registrations` | Authenticated active user | Creates the caller's registration using a required UUID `Idempotency-Key`. Returns `201`; retries with the same user/key/workshop return the original registration, free registrations are confirmed, paid registrations are pending and full workshops use the waiting list. |
+| `GET /api/v1/workshops/{id}/registrations/me` | Authenticated | Returns the caller's latest registration for the workshop, including cancelled/refunded state, or `404` when none exists. |
 | `PATCH /api/v1/registrations/{id}/cancel` | Registration owner | Cancels a valid registration. If it occupied capacity, promotes the first eligible waiting-list participant. |
 | `GET /api/v1/workshops/{id}/registrations` | Workshop creator or `ADMIN` | Lists workshop registrations, paginated and optionally filtered by registration `status`. |
 | `POST /api/v1/registrations/{id}/payments` | Registration owner | Creates a simulated payment for a pending PIX/card registration. Requires a UUID `Idempotency-Key`; repeated use for the same registration returns the prior `PaymentResponse`. |
@@ -46,6 +47,23 @@
 | `GET /api/v1/posts/feed` | Authenticated | Lists published posts, paginated by published time; highlights are returned as feed metadata. |
 | `PUT` / `DELETE /api/v1/posts/{id}/like` | Authenticated | Adds/removes the caller's idempotent like. |
 | `POST` / `GET /api/v1/posts/{id}/comments` | Authenticated | Creates or paginates comments on a published post. |
+| `GET /api/v1/groups` | Authenticated | Lists groups accessible through a confirmed paid/exempt registration. ARWEG sees managed workshop groups and ADMIN sees all groups. |
+| `GET /api/v1/groups/{id}` | Member, workshop creator or `ADMIN` | Returns a group without bypassing its derived membership rules. |
+| `GET /api/v1/groups/{id}/messages` | Member, workshop creator or `ADMIN` | Returns up to `size` messages ordered newest-first. Accepts the previous `nextCursor` UUID and returns `MessagePageResponse`. |
+| `POST /api/v1/groups/{id}/messages` | Member, workshop creator or `ADMIN` | Persists a message in an active group and publishes it to `/topic/groups/{id}`. Returns `201`. |
+| `PATCH /api/v1/groups/{id}/messages/{messageId}` | Message author | Edits a non-deleted message while the group is active. |
+| `DELETE /api/v1/groups/{id}/messages/{messageId}` | Message author, workshop creator or `ADMIN` | Soft-deletes a message and publishes its tombstone representation. |
+| `STOMP /ws` | Authenticated | Accepts a Bearer JWT in the STOMP `CONNECT` `Authorization` header. Send to `/app/groups/{id}/messages`; authorized subscribers receive committed messages on `/topic/groups/{id}`. |
+| `GET /api/v1/notifications` | Authenticated | Lists the caller's persistent notifications, paginated newest-first. |
+| `PATCH /api/v1/notifications/{id}/read` | Notification owner | Idempotently marks one notification as read. |
+| `PATCH /api/v1/notifications/read-all` | Authenticated | Marks all caller notifications as read and returns `204`. |
+| `POST /api/v1/notification-devices` | Authenticated | Registers, reassigns or reactivates an Android/iOS push token without returning the token. |
+| `DELETE /api/v1/notification-devices/{id}` | Device owner | Deactivates a device and returns `204`. |
+| `POST /api/v1/arweg/notifications` | `ARWEG`, `ADMIN` | Creates immediate or scheduled manual notifications for the provided user IDs. |
+| `GET /api/v1/arweg/workshops/{id}/participants` | Workshop creator or `ADMIN` | Paginates participants with optional registration, payment and attendance status filters. |
+| `PATCH /api/v1/arweg/workshops/{id}/attendance` | Workshop creator or `ADMIN` | Atomically records up to 500 attendance updates. |
+| `GET /api/v1/arweg/workshops/{id}/participants/export` | Workshop creator or `ADMIN` | Exports the filtered participant list as `CSV` or `XLSX`. |
+| `GET /api/v1/arweg/dashboard` | `ARWEG`, `ADMIN` | Returns workshop, registration, waiting-list and attendance totals scoped to managed workshops; admins see all workshops. |
 | `GET /actuator/health` | Public | Health check. |
 | `GET /v3/api-docs`, `/swagger-ui.html` | Public | OpenAPI document and Swagger UI. |
 
@@ -133,6 +151,39 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - Published posts are the only posts readable through feed, likes and comments. `PostLike` has a composite database key to prevent duplicate likes; comments are separately paginated.
 - `PostService` keeps post ownership and transition checks in the service layer. The deterministic feed ranks highlighted posts, the caller's selected workshop themes, upcoming workshops with open registration, then recency; it returns highlight/like metadata without exposing drafts or scheduled content.
 - `V10__create_posts.sql` adds posts, likes and comments with lifecycle constraints and feed/comment indexes.
+
+## Group and chat module
+
+- `WorkshopGroup`: exactly one group is linked to each workshop by a database unique constraint. Draft groups start inactive, publishing activates them, and closing/cancelling/archiving deactivates them. Migration `V11__create_workshop_groups_and_messages.sql` also backfills existing workshops consistently with their current status.
+- `GroupService`: derives participant access from a `CONFIRMED` registration with `PAID` or `EXEMPT` payment status. Cancelling a registration therefore removes group access without a duplicated membership table. Workshop creators and `ADMIN` can moderate their groups.
+- `Message`: stores author, content, sent/edited/deleted timestamps. Deletion is soft and responses hide deleted content while retaining a visible tombstone.
+- `ChatService`: persists before publishing, blocks sends and edits in inactive groups, enforces ownership/moderation and provides newest-first cursor pagination. `nextCursor` is the last returned message UUID and must be passed back unchanged.
+- `GroupController` and `ChatController`: REST remains the persistent source of truth for group discovery and message history/actions.
+- `WebSocketConfiguration` and `ChatWebSocketController`: STOMP uses `/ws`, authenticates the `CONNECT` frame with the same JWT, authorizes every group subscription, accepts sends at `/app/groups/{groupId}/messages` and publishes only committed message representations to `/topic/groups/{groupId}`.
+
+## Notification module
+
+- `Notification` is the persistent source of truth for the in-app centre. It stores type, safe display content, string metadata, read time, schedule, delivery time and creation time for one user.
+- `NotificationDevice` stores an unexposed provider token, platform and active lifecycle. Re-registering a token safely reassigns it to the authenticated user; deletion deactivates rather than exposing or returning the token.
+- `NotificationService` enforces ownership, paginates the centre, supports read/read-all, creates immediate or scheduled manual communication and dispatches due notifications through the replaceable `PushProvider` only after persistence commits.
+- `NoOpPushProvider` deliberately keeps the provider boundary inactive until external credentials/configuration exist; persistent notifications continue to work without push.
+- Registration creation, waiting-list entry/promotion and payment confirmation/decline create automatic domain notifications in the same business transaction.
+- `V12__create_notifications.sql` creates notifications and devices with user, delivery and scheduling indexes.
+
+## Workshop administration module
+
+- Attendance is stored on the registration as `ATTENDED`, `NOT_ATTENDED`, `JUSTIFIED_ABSENCE` or `ABSENT`, together with the marking actor and timestamp. Only confirmed or refunded registrations can receive attendance.
+- Participant queries and exports support the same optional `registrationStatus`, `paymentStatus` and `attendanceStatus` filters. CSV is UTF-8 with a BOM; XLSX is generated as an Office Open XML workbook without exposing entities.
+- Bulk attendance is transactional, rejects duplicate IDs, locks the selected registrations and validates that every registration belongs to the managed workshop before applying any change.
+- The dashboard scopes counts to the caller's workshops. `ADMIN` receives global counts.
+- `V13__add_registration_attendance.sql` adds attendance state/audit columns, consistency checks and a workshop-attendance index.
+
+## Mobile reliability — partial
+
+- Registration creation now requires a UUID `Idempotency-Key`, persisted under a per-user unique index. Reusing the key for the same workshop returns the original registration without duplicating notifications; reuse for another workshop is rejected.
+- The registering user and workshop are pessimistically locked, so concurrent retries for the same operation converge before capacity and waiting-list decisions.
+- `V14__add_registration_idempotency.sql` backfills existing registrations with their own IDs and adds the non-null idempotency key/index.
+- Registration responses expose `waitingListPosition` only while the registration is on the waiting list. The position is calculated from the stable registration timestamp/UUID order and disappears after promotion.
 
 
 ## Cross-cutting classes

@@ -26,14 +26,23 @@ public class RegistrationController {
 
     @PostMapping("/api/v1/workshops/{workshopId}/registrations")
     @Operation(summary = "Register the authenticated user for a workshop")
-    public ResponseEntity<RegistrationResponse> register(@PathVariable UUID workshopId, Authentication authentication) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.register(userId(authentication), workshopId));
+    public ResponseEntity<RegistrationResponse> register(@PathVariable UUID workshopId,
+                                                          @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+                                                          Authentication authentication) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(service.register(userId(authentication), workshopId, idempotencyKey));
     }
 
     @PatchMapping("/api/v1/registrations/{registrationId}/cancel")
     @Operation(summary = "Cancel the authenticated user's registration")
     public RegistrationResponse cancel(@PathVariable UUID registrationId, Authentication authentication) {
         return payments.cancelRegistration(userId(authentication), registrationId);
+    }
+
+    @GetMapping("/api/v1/workshops/{workshopId}/registrations/me")
+    @Operation(summary = "Get the caller's latest registration for a workshop")
+    public RegistrationResponse current(@PathVariable UUID workshopId, Authentication authentication) {
+        return service.currentForWorkshop(userId(authentication), workshopId);
     }
 
     @GetMapping("/api/v1/workshops/{workshopId}/registrations")
