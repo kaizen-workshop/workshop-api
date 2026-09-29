@@ -6,9 +6,9 @@ The project is a modular Spring Boot monolith designed primarily for a mobile cl
 ## Current status
 
 Foundation, identity, profile/preferences, workshop catalogue, media, registrations,
-payments, participant history/calendar/evaluations and the initial posts/feed flow are
-implemented. Groups/chat, notifications, administration, audit, mobile synchronization
-and release hardening remain pending.
+payments, participant history/calendar/evaluations, posts/feed and workshop groups/chat
+are implemented. Notifications, administration, audit, mobile synchronization and
+release hardening remain pending.
 
 The delivery plan is maintained in [TASKS.md](TASKS.md). It is organized as cohesive
 product flows instead of small technical fragments.

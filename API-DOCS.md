@@ -46,6 +46,13 @@
 | `GET /api/v1/posts/feed` | Authenticated | Lists published posts, paginated by published time; highlights are returned as feed metadata. |
 | `PUT` / `DELETE /api/v1/posts/{id}/like` | Authenticated | Adds/removes the caller's idempotent like. |
 | `POST` / `GET /api/v1/posts/{id}/comments` | Authenticated | Creates or paginates comments on a published post. |
+| `GET /api/v1/groups` | Authenticated | Lists groups accessible through a confirmed paid/exempt registration. ARWEG sees managed workshop groups and ADMIN sees all groups. |
+| `GET /api/v1/groups/{id}` | Member, workshop creator or `ADMIN` | Returns a group without bypassing its derived membership rules. |
+| `GET /api/v1/groups/{id}/messages` | Member, workshop creator or `ADMIN` | Returns up to `size` messages ordered newest-first. Accepts the previous `nextCursor` UUID and returns `MessagePageResponse`. |
+| `POST /api/v1/groups/{id}/messages` | Member, workshop creator or `ADMIN` | Persists a message in an active group and publishes it to `/topic/groups/{id}`. Returns `201`. |
+| `PATCH /api/v1/groups/{id}/messages/{messageId}` | Message author | Edits a non-deleted message while the group is active. |
+| `DELETE /api/v1/groups/{id}/messages/{messageId}` | Message author, workshop creator or `ADMIN` | Soft-deletes a message and publishes its tombstone representation. |
+| `STOMP /ws` | Authenticated | Accepts a Bearer JWT in the STOMP `CONNECT` `Authorization` header. Send to `/app/groups/{id}/messages`; authorized subscribers receive committed messages on `/topic/groups/{id}`. |
 | `GET /actuator/health` | Public | Health check. |
 | `GET /v3/api-docs`, `/swagger-ui.html` | Public | OpenAPI document and Swagger UI. |
 
@@ -133,6 +140,15 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - Published posts are the only posts readable through feed, likes and comments. `PostLike` has a composite database key to prevent duplicate likes; comments are separately paginated.
 - `PostService` keeps post ownership and transition checks in the service layer. The deterministic feed ranks highlighted posts, the caller's selected workshop themes, upcoming workshops with open registration, then recency; it returns highlight/like metadata without exposing drafts or scheduled content.
 - `V10__create_posts.sql` adds posts, likes and comments with lifecycle constraints and feed/comment indexes.
+
+## Group and chat module
+
+- `WorkshopGroup`: exactly one group is linked to each workshop by a database unique constraint. Draft groups start inactive, publishing activates them, and closing/cancelling/archiving deactivates them. Migration `V11__create_workshop_groups_and_messages.sql` also backfills existing workshops consistently with their current status.
+- `GroupService`: derives participant access from a `CONFIRMED` registration with `PAID` or `EXEMPT` payment status. Cancelling a registration therefore removes group access without a duplicated membership table. Workshop creators and `ADMIN` can moderate their groups.
+- `Message`: stores author, content, sent/edited/deleted timestamps. Deletion is soft and responses hide deleted content while retaining a visible tombstone.
+- `ChatService`: persists before publishing, blocks sends and edits in inactive groups, enforces ownership/moderation and provides newest-first cursor pagination. `nextCursor` is the last returned message UUID and must be passed back unchanged.
+- `GroupController` and `ChatController`: REST remains the persistent source of truth for group discovery and message history/actions.
+- `WebSocketConfiguration` and `ChatWebSocketController`: STOMP uses `/ws`, authenticates the `CONNECT` frame with the same JWT, authorizes every group subscription, accepts sends at `/app/groups/{groupId}/messages` and publishes only committed message representations to `/topic/groups/{groupId}`.
 
 
 ## Cross-cutting classes

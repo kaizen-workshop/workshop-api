@@ -234,7 +234,7 @@ Post
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Deliver exactly one group per workshop, membership derived from a valid registration and
@@ -248,6 +248,10 @@ Domain contract:
 Group: id, workshop
 Message: id, group, author, content, sentAt, editedAt, deletedAt
 ```
+
+Delivered with one database-constrained group per workshop, lifecycle integration,
+registration/payment-derived membership, REST cursor pagination, author editing,
+soft-delete moderation and authenticated STOMP delivery backed by persisted messages.
 
 ### TASK-012 — Notifications
 

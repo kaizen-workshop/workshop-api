@@ -10,6 +10,13 @@ import org.springframework.data.repository.query.Param;
 public interface RegistrationRepository extends JpaRepository<Registration, UUID> {
     boolean existsByUserIdAndWorkshopIdAndStatusIn(UUID userId, UUID workshopId, Collection<RegistrationStatus> statuses);
 
+    boolean existsByUserIdAndWorkshopIdAndStatusAndPaymentStatusIn(
+            UUID userId,
+            UUID workshopId,
+            RegistrationStatus status,
+            Collection<RegistrationPaymentStatus> paymentStatuses
+    );
+
     long countByWorkshopIdAndStatusIn(UUID workshopId, Collection<RegistrationStatus> statuses);
 
     @Query("select r from Registration r join r.user u where r.workshop.id = :workshopId and r.status = 'WAITING_LIST' "

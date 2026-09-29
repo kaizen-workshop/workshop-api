@@ -22,6 +22,9 @@ import br.com.weg.workshop.payment.service.PaymentService;
 import br.com.weg.workshop.evaluation.service.EvaluationService;
 import br.com.weg.workshop.evaluation.service.ParticipantWorkshopService;
 import br.com.weg.workshop.post.service.PostService;
+import br.com.weg.workshop.group.service.GroupService;
+import br.com.weg.workshop.group.service.GroupLifecycleService;
+import br.com.weg.workshop.chat.service.ChatService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -90,6 +93,15 @@ class FoundationIntegrationTest {
     @MockBean
     private PostService postService;
 
+    @MockBean
+    private GroupService groupService;
+
+    @MockBean
+    private ChatService chatService;
+
+    @MockBean
+    private GroupLifecycleService groupLifecycleService;
+
 
     @Test
     void healthEndpointIsPublicAndReportsUp() throws Exception {
@@ -140,6 +152,14 @@ class FoundationIntegrationTest {
         mockMvc.perform(get("/api/v1/workshops"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void groupsAndChatRequireAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/groups"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/groups/{id}/messages", java.util.UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
