@@ -25,6 +25,7 @@ import br.com.weg.workshop.post.service.PostService;
 import br.com.weg.workshop.group.service.GroupService;
 import br.com.weg.workshop.group.service.GroupLifecycleService;
 import br.com.weg.workshop.chat.service.ChatService;
+import br.com.weg.workshop.notification.service.NotificationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -102,6 +103,9 @@ class FoundationIntegrationTest {
     @MockBean
     private GroupLifecycleService groupLifecycleService;
 
+    @MockBean
+    private NotificationService notificationService;
+
 
     @Test
     void healthEndpointIsPublicAndReportsUp() throws Exception {
@@ -160,6 +164,18 @@ class FoundationIntegrationTest {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/v1/groups/{id}/messages", java.util.UUID.randomUUID()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void notificationsRequireAuthenticationAndManualCommunicationRequiresArweg() throws Exception {
+        mockMvc.perform(get("/api/v1/notifications"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/arweg/notifications")
+                        .with(user("participant").roles("PARTICIPANT"))
+                        .contentType("application/json")
+                        .content("{\"userIds\":[\"" + java.util.UUID.randomUUID()
+                                + "\"],\"title\":\"Notice\",\"message\":\"Message\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

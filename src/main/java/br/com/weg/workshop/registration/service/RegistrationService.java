@@ -1,6 +1,8 @@
 package br.com.weg.workshop.registration.service;
 
 import br.com.weg.workshop.registration.domain.*;
+import br.com.weg.workshop.notification.domain.NotificationType;
+import br.com.weg.workshop.notification.service.NotificationService;
 import br.com.weg.workshop.registration.dto.RegistrationResponse;
 import br.com.weg.workshop.registration.repository.RegistrationRepository;
 import br.com.weg.workshop.shared.error.*;
@@ -25,11 +27,14 @@ public class RegistrationService {
     private final RegistrationRepository registrations;
     private final WorkshopRepository workshops;
     private final UserRepository users;
+    private final NotificationService notifications;
 
-    public RegistrationService(RegistrationRepository registrations, WorkshopRepository workshops, UserRepository users) {
+    public RegistrationService(RegistrationRepository registrations, WorkshopRepository workshops, UserRepository users,
+                               NotificationService notifications) {
         this.registrations = registrations;
         this.workshops = workshops;
         this.users = users;
+        this.notifications = notifications;
     }
 
     @Transactional
@@ -43,7 +48,12 @@ public class RegistrationService {
 
         RegistrationStatus status = hasVacancy(workshop) ? registrationStatus(workshop) : RegistrationStatus.WAITING_LIST;
         Registration registration = Registration.create(user, workshop, status, paymentStatus(workshop));
-        return RegistrationResponse.from(registrations.save(registration));
+        Registration saved = registrations.save(registration);
+        NotificationType type = status == RegistrationStatus.WAITING_LIST
+                ? NotificationType.WAITING_LIST_JOINED : NotificationType.REGISTRATION_CREATED;
+        notifications.notify(userId, type, "Workshop registration", registrationMessage(status),
+                Map.of("workshopId", workshopId.toString(), "registrationId", saved.getId().toString()));
+        return RegistrationResponse.from(saved);
     }
 
     @Transactional
@@ -95,8 +105,12 @@ public class RegistrationService {
     }
 
     private void promoteFirstEligible(Workshop workshop) {
-        registrations.findFirstEligibleWaitingListEntry(workshop.getId()).ifPresent(waiting ->
-                waiting.promote(registrationStatus(workshop), paymentStatus(workshop)));
+        registrations.findFirstEligibleWaitingListEntry(workshop.getId()).ifPresent(waiting -> {
+            waiting.promote(registrationStatus(workshop), paymentStatus(workshop));
+            notifications.notify(waiting.getUser().getId(), NotificationType.WAITING_LIST_PROMOTED,
+                    "Waiting list update", "Your registration was promoted from the waiting list.",
+                    Map.of("workshopId", workshop.getId().toString(), "registrationId", waiting.getId().toString()));
+        });
     }
 
     private boolean hasVacancy(Workshop workshop) {
@@ -134,5 +148,11 @@ public class RegistrationService {
             throw new ConflictException("Only active users can register.");
         }
         return user;
+    }
+
+    private String registrationMessage(RegistrationStatus status) {
+        return status == RegistrationStatus.WAITING_LIST
+                ? "You joined the workshop waiting list."
+                : "Your workshop registration was created.";
     }
 }

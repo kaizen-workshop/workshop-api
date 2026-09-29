@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import br.com.weg.workshop.preference.domain.*;
+import br.com.weg.workshop.notification.service.NotificationService;
 import br.com.weg.workshop.registration.domain.*;
 import br.com.weg.workshop.registration.repository.RegistrationRepository;
 import br.com.weg.workshop.shared.error.ConflictException;
@@ -26,6 +27,7 @@ class RegistrationServiceTest {
     @Mock RegistrationRepository registrations;
     @Mock WorkshopRepository workshops;
     @Mock UserRepository users;
+    @Mock NotificationService notifications;
     @InjectMocks RegistrationService service;
 
     @Test

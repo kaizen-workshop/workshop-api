@@ -53,6 +53,12 @@
 | `PATCH /api/v1/groups/{id}/messages/{messageId}` | Message author | Edits a non-deleted message while the group is active. |
 | `DELETE /api/v1/groups/{id}/messages/{messageId}` | Message author, workshop creator or `ADMIN` | Soft-deletes a message and publishes its tombstone representation. |
 | `STOMP /ws` | Authenticated | Accepts a Bearer JWT in the STOMP `CONNECT` `Authorization` header. Send to `/app/groups/{id}/messages`; authorized subscribers receive committed messages on `/topic/groups/{id}`. |
+| `GET /api/v1/notifications` | Authenticated | Lists the caller's persistent notifications, paginated newest-first. |
+| `PATCH /api/v1/notifications/{id}/read` | Notification owner | Idempotently marks one notification as read. |
+| `PATCH /api/v1/notifications/read-all` | Authenticated | Marks all caller notifications as read and returns `204`. |
+| `POST /api/v1/notification-devices` | Authenticated | Registers, reassigns or reactivates an Android/iOS push token without returning the token. |
+| `DELETE /api/v1/notification-devices/{id}` | Device owner | Deactivates a device and returns `204`. |
+| `POST /api/v1/arweg/notifications` | `ARWEG`, `ADMIN` | Creates immediate or scheduled manual notifications for the provided user IDs. |
 | `GET /actuator/health` | Public | Health check. |
 | `GET /v3/api-docs`, `/swagger-ui.html` | Public | OpenAPI document and Swagger UI. |
 
@@ -149,6 +155,15 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `ChatService`: persists before publishing, blocks sends and edits in inactive groups, enforces ownership/moderation and provides newest-first cursor pagination. `nextCursor` is the last returned message UUID and must be passed back unchanged.
 - `GroupController` and `ChatController`: REST remains the persistent source of truth for group discovery and message history/actions.
 - `WebSocketConfiguration` and `ChatWebSocketController`: STOMP uses `/ws`, authenticates the `CONNECT` frame with the same JWT, authorizes every group subscription, accepts sends at `/app/groups/{groupId}/messages` and publishes only committed message representations to `/topic/groups/{groupId}`.
+
+## Notification module
+
+- `Notification` is the persistent source of truth for the in-app centre. It stores type, safe display content, string metadata, read time, schedule, delivery time and creation time for one user.
+- `NotificationDevice` stores an unexposed provider token, platform and active lifecycle. Re-registering a token safely reassigns it to the authenticated user; deletion deactivates rather than exposing or returning the token.
+- `NotificationService` enforces ownership, paginates the centre, supports read/read-all, creates immediate or scheduled manual communication and dispatches due notifications through the replaceable `PushProvider` only after persistence commits.
+- `NoOpPushProvider` deliberately keeps the provider boundary inactive until external credentials/configuration exist; persistent notifications continue to work without push.
+- Registration creation, waiting-list entry/promotion and payment confirmation/decline create automatic domain notifications in the same business transaction.
+- `V12__create_notifications.sql` creates notifications and devices with user, delivery and scheduling indexes.
 
 
 ## Cross-cutting classes

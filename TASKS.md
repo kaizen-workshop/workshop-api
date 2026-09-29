@@ -258,7 +258,7 @@ soft-delete moderation and authenticated STOMP delivery backed by persisted mess
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Deliver the in-app notification centre, automatic domain notifications and a replaceable
@@ -271,6 +271,10 @@ Domain contract:
 Notification
     id, user, type, title, message, read, data, createdAt
 ```
+
+Delivered with a paginated persistent centre, read/read-all, automatic
+registration/waiting-list/payment events, secure device ownership, replaceable
+push provider, manual ARWEG communication and scheduled delivery.
 
 ## Milestone 6 — Administration and insight
 
