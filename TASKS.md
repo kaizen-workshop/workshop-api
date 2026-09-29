@@ -283,7 +283,7 @@ push provider, manual ARWEG communication and scheduled delivery.
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Deliver attendance, bulk updates, participant listing and CSV/XLSX exports, plus the
@@ -291,6 +291,10 @@ ARWEG dashboard. Restrict all administrative operations and support the document
 filters for registration, payment and attendance status.
 
 Attendance statuses: `ATTENDED`, `NOT_ATTENDED`, `JUSTIFIED_ABSENCE` and `ABSENT`.
+
+Delivered with creator/admin-scoped participant queries, registration/payment/
+attendance filters, atomic bulk attendance with actor/timestamp audit fields, UTF-8
+CSV and Office Open XML XLSX exports, plus a scoped ARWEG dashboard.
 
 ### TASK-014 — Metrics and administrative audit
 

@@ -59,6 +59,10 @@
 | `POST /api/v1/notification-devices` | Authenticated | Registers, reassigns or reactivates an Android/iOS push token without returning the token. |
 | `DELETE /api/v1/notification-devices/{id}` | Device owner | Deactivates a device and returns `204`. |
 | `POST /api/v1/arweg/notifications` | `ARWEG`, `ADMIN` | Creates immediate or scheduled manual notifications for the provided user IDs. |
+| `GET /api/v1/arweg/workshops/{id}/participants` | Workshop creator or `ADMIN` | Paginates participants with optional registration, payment and attendance status filters. |
+| `PATCH /api/v1/arweg/workshops/{id}/attendance` | Workshop creator or `ADMIN` | Atomically records up to 500 attendance updates. |
+| `GET /api/v1/arweg/workshops/{id}/participants/export` | Workshop creator or `ADMIN` | Exports the filtered participant list as `CSV` or `XLSX`. |
+| `GET /api/v1/arweg/dashboard` | `ARWEG`, `ADMIN` | Returns workshop, registration, waiting-list and attendance totals scoped to managed workshops; admins see all workshops. |
 | `GET /actuator/health` | Public | Health check. |
 | `GET /v3/api-docs`, `/swagger-ui.html` | Public | OpenAPI document and Swagger UI. |
 
@@ -164,6 +168,14 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `NoOpPushProvider` deliberately keeps the provider boundary inactive until external credentials/configuration exist; persistent notifications continue to work without push.
 - Registration creation, waiting-list entry/promotion and payment confirmation/decline create automatic domain notifications in the same business transaction.
 - `V12__create_notifications.sql` creates notifications and devices with user, delivery and scheduling indexes.
+
+## Workshop administration module
+
+- Attendance is stored on the registration as `ATTENDED`, `NOT_ATTENDED`, `JUSTIFIED_ABSENCE` or `ABSENT`, together with the marking actor and timestamp. Only confirmed or refunded registrations can receive attendance.
+- Participant queries and exports support the same optional `registrationStatus`, `paymentStatus` and `attendanceStatus` filters. CSV is UTF-8 with a BOM; XLSX is generated as an Office Open XML workbook without exposing entities.
+- Bulk attendance is transactional, rejects duplicate IDs, locks the selected registrations and validates that every registration belongs to the managed workshop before applying any change.
+- The dashboard scopes counts to the caller's workshops. `ADMIN` receives global counts.
+- `V13__add_registration_attendance.sql` adds attendance state/audit columns, consistency checks and a workshop-attendance index.
 
 
 ## Cross-cutting classes

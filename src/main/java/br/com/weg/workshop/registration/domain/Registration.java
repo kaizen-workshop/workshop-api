@@ -4,6 +4,7 @@ import br.com.weg.workshop.user.domain.UserEntity;
 import br.com.weg.workshop.workshop.domain.*;
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -33,6 +34,15 @@ public class Registration {
     private Instant registeredAt;
 
     private Instant cancelledAt;
+
+    @Enumerated(EnumType.STRING)
+    private AttendanceStatus attendanceStatus;
+
+    private Instant attendanceMarkedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "attendance_marked_by")
+    private UserEntity attendanceMarkedBy;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -85,6 +95,13 @@ public class Registration {
     public void markPaymentPaid() { paymentStatus = RegistrationPaymentStatus.PAID; updatedAt = Instant.now(); }
     public void markPaymentRefunded() { paymentStatus = RegistrationPaymentStatus.REFUNDED; updatedAt = Instant.now(); }
 
+    public void markAttendance(AttendanceStatus attendanceStatus, UserEntity actor) {
+        this.attendanceStatus = Objects.requireNonNull(attendanceStatus);
+        this.attendanceMarkedBy = Objects.requireNonNull(actor);
+        attendanceMarkedAt = Instant.now();
+        updatedAt = attendanceMarkedAt;
+    }
+
     public UUID getId() { return id; }
     public UserEntity getUser() { return user; }
     public Workshop getWorkshop() { return workshop; }
@@ -94,4 +111,7 @@ public class Registration {
     public Instant getCancelledAt() { return cancelledAt; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public AttendanceStatus getAttendanceStatus() { return attendanceStatus; }
+    public Instant getAttendanceMarkedAt() { return attendanceMarkedAt; }
+    public UserEntity getAttendanceMarkedBy() { return attendanceMarkedBy; }
 }

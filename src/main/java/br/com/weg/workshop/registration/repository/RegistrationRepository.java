@@ -26,6 +26,40 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
     @Query("select r from Registration r where r.workshop.id = :workshopId and (:status is null or r.status = :status)")
     Page<Registration> findByWorkshop(@Param("workshopId") UUID workshopId, @Param("status") RegistrationStatus status, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"user", "attendanceMarkedBy"})
+    @Query("select r from Registration r where r.workshop.id = :workshopId "
+            + "and (:registrationStatus is null or r.status = :registrationStatus) "
+            + "and (:paymentStatus is null or r.paymentStatus = :paymentStatus) "
+            + "and (:attendanceStatus is null or r.attendanceStatus = :attendanceStatus)")
+    Page<Registration> findParticipants(@Param("workshopId") UUID workshopId,
+                                        @Param("registrationStatus") RegistrationStatus registrationStatus,
+                                        @Param("paymentStatus") RegistrationPaymentStatus paymentStatus,
+                                        @Param("attendanceStatus") AttendanceStatus attendanceStatus,
+                                        Pageable pageable);
+
+    @EntityGraph(attributePaths = {"user", "attendanceMarkedBy"})
+    @Query("select r from Registration r where r.workshop.id = :workshopId "
+            + "and (:registrationStatus is null or r.status = :registrationStatus) "
+            + "and (:paymentStatus is null or r.paymentStatus = :paymentStatus) "
+            + "and (:attendanceStatus is null or r.attendanceStatus = :attendanceStatus)")
+    List<Registration> findParticipants(@Param("workshopId") UUID workshopId,
+                                        @Param("registrationStatus") RegistrationStatus registrationStatus,
+                                        @Param("paymentStatus") RegistrationPaymentStatus paymentStatus,
+                                        @Param("attendanceStatus") AttendanceStatus attendanceStatus,
+                                        Sort sort);
+
+    @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"user", "workshop"})
+    @Query("select r from Registration r where r.id in :ids")
+    List<Registration> findAllByIdForUpdate(@Param("ids") Collection<UUID> ids);
+
+    @Query("select count(r) from Registration r where (:admin = true or r.workshop.createdBy.id = :managerId) "
+            + "and (:registrationStatus is null or r.status = :registrationStatus) "
+            + "and (:attendanceStatus is null or r.attendanceStatus = :attendanceStatus)")
+    long countManaged(@Param("managerId") UUID managerId, @Param("admin") boolean admin,
+                      @Param("registrationStatus") RegistrationStatus registrationStatus,
+                      @Param("attendanceStatus") AttendanceStatus attendanceStatus);
+
     @Query("select r from Registration r where r.user.id = :userId and r.status in :statuses "
             + "and r.workshop.endDate < :today")
     Page<Registration> findCompletedByUser(@Param("userId") UUID userId,

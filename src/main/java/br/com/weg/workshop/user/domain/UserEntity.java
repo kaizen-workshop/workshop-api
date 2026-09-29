@@ -66,6 +66,7 @@ public class UserEntity {
     public String getName() { return name; }
     public String getUsername() { return username; }
     public String getEmail() { return email; }
+    public String getWegRegistration() { return wegRegistration; }
     public Role getRole() { return role; }
     public UserStatus getStatus() { return status; }
     public boolean isMustChangePassword() { return mustChangePassword; }
