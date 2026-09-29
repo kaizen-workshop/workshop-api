@@ -332,12 +332,19 @@ operations.
 Synchronization contract: resources that need incremental sync expose `createdAt`,
 `updatedAt` and, when appropriate, an `updatedAfter` filter.
 
-Progress: registration creation now requires a persisted per-user `Idempotency-Key`,
-serializes concurrent retries and returns the original result for the same operation.
-The mobile client can also reconcile a workshop with the caller's latest registration.
-Waiting-list responses include a stable position and naturally reflect promotion on the
-next reconciliation.
-Cancellation, payment/refund idempotency and broader incremental synchronization remain.
+Delivered so far:
+
+- registration creation requires a persisted per-user `Idempotency-Key`, serializes
+  concurrent retries and returns the original result for the same operation;
+- `GET /api/v1/workshops/{workshopId}/registrations/me` lets the mobile client reconcile
+  the caller's latest registration without listing another user's data;
+- registration responses expose a stable waiting-list position and reflect promotion on
+  the next reconciliation;
+- migrations, OpenAPI documentation, security boundaries and automated tests cover these
+  increments.
+
+Remaining: cancellation, payment/refund idempotency, HTTP caching and broader incremental
+synchronization.
 
 ### TASK-016 — Hardening, observability and release readiness
 
