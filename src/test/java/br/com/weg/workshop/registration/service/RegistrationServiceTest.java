@@ -55,6 +55,7 @@ class RegistrationServiceTest {
 
         assertThat(response.status()).isEqualTo("WAITING_LIST");
         assertThat(response.paymentStatus()).isEqualTo("EXEMPT");
+        assertThat(response.waitingListPosition()).isEqualTo(1);
     }
 
     @Test
@@ -70,6 +71,7 @@ class RegistrationServiceTest {
         var response = service.register(user.getId(), workshop.getId(), key);
 
         assertThat(response.id()).isEqualTo(existing.getId());
+        assertThat(response.waitingListPosition()).isNull();
         verifyNoInteractions(workshops);
         verify(registrations, never()).save(any());
         verifyNoInteractions(notifications);

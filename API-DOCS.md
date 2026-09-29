@@ -183,6 +183,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - Registration creation now requires a UUID `Idempotency-Key`, persisted under a per-user unique index. Reusing the key for the same workshop returns the original registration without duplicating notifications; reuse for another workshop is rejected.
 - The registering user and workshop are pessimistically locked, so concurrent retries for the same operation converge before capacity and waiting-list decisions.
 - `V14__add_registration_idempotency.sql` backfills existing registrations with their own IDs and adds the non-null idempotency key/index.
+- Registration responses expose `waitingListPosition` only while the registration is on the waiting list. The position is calculated from the stable registration timestamp/UUID order and disappears after promotion.
 
 
 ## Cross-cutting classes

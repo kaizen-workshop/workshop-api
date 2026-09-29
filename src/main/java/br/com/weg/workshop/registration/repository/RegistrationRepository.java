@@ -14,6 +14,12 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
 
     Optional<Registration> findFirstByUserIdAndWorkshopIdOrderByCreatedAtDesc(UUID userId, UUID workshopId);
 
+    @Query(value = "select count(*) from workshop.registration r where r.workshop_id = :workshopId "
+            + "and r.status = 'WAITING_LIST' and (r.registered_at, r.id) < (:registeredAt, :registrationId)",
+            nativeQuery = true)
+    long countWaitingAhead(@Param("workshopId") UUID workshopId, @Param("registeredAt") java.time.Instant registeredAt,
+                           @Param("registrationId") UUID registrationId);
+
     boolean existsByUserIdAndWorkshopIdAndStatusAndPaymentStatusIn(
             UUID userId,
             UUID workshopId,

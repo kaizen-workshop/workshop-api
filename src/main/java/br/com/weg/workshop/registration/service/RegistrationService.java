@@ -63,7 +63,7 @@ public class RegistrationService {
                 ? NotificationType.WAITING_LIST_JOINED : NotificationType.REGISTRATION_CREATED;
         notifications.notify(userId, type, "Workshop registration", registrationMessage(status),
                 Map.of("workshopId", workshopId.toString(), "registrationId", saved.getId().toString()));
-        return RegistrationResponse.from(saved);
+        return response(saved);
     }
 
     private RegistrationResponse idempotentResult(UUID userId, UUID workshopId, UUID idempotencyKey) {
@@ -72,7 +72,7 @@ public class RegistrationService {
         if (!existing.getWorkshop().getId().equals(workshopId)) {
             throw new ConflictException("Idempotency-Key was already used for another workshop.");
         }
-        return RegistrationResponse.from(existing);
+        return response(existing);
     }
 
     @Transactional
@@ -83,7 +83,7 @@ public class RegistrationService {
     @Transactional(readOnly = true)
     public RegistrationResponse currentForWorkshop(UUID userId, UUID workshopId) {
         return registrations.findFirstByUserIdAndWorkshopIdOrderByCreatedAtDesc(userId, workshopId)
-                .map(RegistrationResponse::from)
+                .map(this::response)
                 .orElseThrow(() -> new ResourceNotFoundException("Registration not found."));
     }
 
@@ -181,5 +181,13 @@ public class RegistrationService {
         return status == RegistrationStatus.WAITING_LIST
                 ? "You joined the workshop waiting list."
                 : "Your workshop registration was created.";
+    }
+
+    private RegistrationResponse response(Registration registration) {
+        Long waitingListPosition = registration.getStatus() == RegistrationStatus.WAITING_LIST
+                ? registrations.countWaitingAhead(registration.getWorkshop().getId(), registration.getRegisteredAt(),
+                        registration.getId()) + 1
+                : null;
+        return RegistrationResponse.from(registration, waitingListPosition);
     }
 }
