@@ -39,6 +39,12 @@ public class RegistrationController {
         return payments.cancelRegistration(userId(authentication), registrationId);
     }
 
+    @GetMapping("/api/v1/workshops/{workshopId}/registrations/me")
+    @Operation(summary = "Get the caller's latest registration for a workshop")
+    public RegistrationResponse current(@PathVariable UUID workshopId, Authentication authentication) {
+        return service.currentForWorkshop(userId(authentication), workshopId);
+    }
+
     @GetMapping("/api/v1/workshops/{workshopId}/registrations")
     @PreAuthorize("hasAnyRole('ARWEG','ADMIN')")
     @Operation(summary = "List registrations for a workshop")

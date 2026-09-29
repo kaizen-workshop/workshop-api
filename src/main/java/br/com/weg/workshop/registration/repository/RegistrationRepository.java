@@ -12,6 +12,8 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
 
     Optional<Registration> findByUserIdAndIdempotencyKey(UUID userId, UUID idempotencyKey);
 
+    Optional<Registration> findFirstByUserIdAndWorkshopIdOrderByCreatedAtDesc(UUID userId, UUID workshopId);
+
     boolean existsByUserIdAndWorkshopIdAndStatusAndPaymentStatusIn(
             UUID userId,
             UUID workshopId,

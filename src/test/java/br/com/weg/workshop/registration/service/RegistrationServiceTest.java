@@ -122,6 +122,18 @@ class RegistrationServiceTest {
     }
 
     @Test
+    void returnsTheUsersLatestRegistrationForAWorkshop() {
+        UserEntity user = activeUser();
+        Workshop workshop = publishedWorkshop(PaymentMethod.FREE, 1);
+        Registration registration = Registration.create(user, workshop, RegistrationStatus.CANCELLED,
+                RegistrationPaymentStatus.CANCELLED);
+        when(registrations.findFirstByUserIdAndWorkshopIdOrderByCreatedAtDesc(user.getId(), workshop.getId()))
+                .thenReturn(Optional.of(registration));
+
+        assertThat(service.currentForWorkshop(user.getId(), workshop.getId()).id()).isEqualTo(registration.getId());
+    }
+
+    @Test
     void requiresAnActiveUser() {
         UserEntity user = UserEntity.create("User", "user", "user@example.com", null, null, null, "hash", Role.PARTICIPANT);
         Workshop workshop = publishedWorkshop(PaymentMethod.FREE, 1);

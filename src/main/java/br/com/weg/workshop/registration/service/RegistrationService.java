@@ -80,6 +80,13 @@ public class RegistrationService {
         return RegistrationResponse.from(cancelForPayment(userId, registrationId));
     }
 
+    @Transactional(readOnly = true)
+    public RegistrationResponse currentForWorkshop(UUID userId, UUID workshopId) {
+        return registrations.findFirstByUserIdAndWorkshopIdOrderByCreatedAtDesc(userId, workshopId)
+                .map(RegistrationResponse::from)
+                .orElseThrow(() -> new ResourceNotFoundException("Registration not found."));
+    }
+
     @Transactional
     public Registration cancelForPayment(UUID userId, UUID registrationId) {
         Registration registration = registrations.findById(registrationId)

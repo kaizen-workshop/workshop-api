@@ -334,7 +334,8 @@ Synchronization contract: resources that need incremental sync expose `createdAt
 
 Progress: registration creation now requires a persisted per-user `Idempotency-Key`,
 serializes concurrent retries and returns the original result for the same operation.
-Cancellation, payment/refund idempotency and incremental synchronization remain.
+The mobile client can also reconcile a workshop with the caller's latest registration.
+Cancellation, payment/refund idempotency and broader incremental synchronization remain.
 
 ### TASK-016 — Hardening, observability and release readiness
 
