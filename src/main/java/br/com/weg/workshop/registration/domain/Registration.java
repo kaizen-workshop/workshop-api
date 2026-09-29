@@ -35,6 +35,9 @@ public class Registration {
 
     private Instant cancelledAt;
 
+    @Column(nullable = false, updatable = false)
+    private UUID idempotencyKey;
+
     @Enumerated(EnumType.STRING)
     private AttendanceStatus attendanceStatus;
 
@@ -55,12 +58,18 @@ public class Registration {
 
     public static Registration create(UserEntity user, Workshop workshop, RegistrationStatus status,
                                       RegistrationPaymentStatus paymentStatus) {
+        return create(user, workshop, status, paymentStatus, UUID.randomUUID());
+    }
+
+    public static Registration create(UserEntity user, Workshop workshop, RegistrationStatus status,
+                                      RegistrationPaymentStatus paymentStatus, UUID idempotencyKey) {
         Registration registration = new Registration();
         registration.id = UUID.randomUUID();
         registration.user = user;
         registration.workshop = workshop;
         registration.status = status;
         registration.paymentStatus = paymentStatus;
+        registration.idempotencyKey = Objects.requireNonNull(idempotencyKey);
         registration.registeredAt = Instant.now();
         registration.createdAt = registration.registeredAt;
         registration.updatedAt = registration.registeredAt;
@@ -114,4 +123,5 @@ public class Registration {
     public AttendanceStatus getAttendanceStatus() { return attendanceStatus; }
     public Instant getAttendanceMarkedAt() { return attendanceMarkedAt; }
     public UserEntity getAttendanceMarkedBy() { return attendanceMarkedBy; }
+    public UUID getIdempotencyKey() { return idempotencyKey; }
 }

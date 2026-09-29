@@ -10,6 +10,8 @@ import org.springframework.data.repository.query.Param;
 public interface RegistrationRepository extends JpaRepository<Registration, UUID> {
     boolean existsByUserIdAndWorkshopIdAndStatusIn(UUID userId, UUID workshopId, Collection<RegistrationStatus> statuses);
 
+    Optional<Registration> findByUserIdAndIdempotencyKey(UUID userId, UUID idempotencyKey);
+
     boolean existsByUserIdAndWorkshopIdAndStatusAndPaymentStatusIn(
             UUID userId,
             UUID workshopId,

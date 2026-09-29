@@ -39,21 +39,40 @@ public class RegistrationService {
 
     @Transactional
     public RegistrationResponse register(UUID userId, UUID workshopId) {
+        return register(userId, workshopId, UUID.randomUUID());
+    }
+
+    @Transactional
+    public RegistrationResponse register(UUID userId, UUID workshopId, UUID idempotencyKey) {
+        if (idempotencyKey == null) throw new IllegalArgumentException("Idempotency-Key is required.");
         UserEntity user = activeUser(userId);
+        RegistrationResponse existing = idempotentResult(userId, workshopId, idempotencyKey);
+        if (existing != null) return existing;
         Workshop workshop = lockedWorkshop(workshopId);
+        existing = idempotentResult(userId, workshopId, idempotencyKey);
+        if (existing != null) return existing;
         validateRegistrable(workshop);
         if (registrations.existsByUserIdAndWorkshopIdAndStatusIn(userId, workshopId, VALID_STATUSES)) {
             throw new ConflictException("User already has a valid registration for this workshop.");
         }
 
         RegistrationStatus status = hasVacancy(workshop) ? registrationStatus(workshop) : RegistrationStatus.WAITING_LIST;
-        Registration registration = Registration.create(user, workshop, status, paymentStatus(workshop));
+        Registration registration = Registration.create(user, workshop, status, paymentStatus(workshop), idempotencyKey);
         Registration saved = registrations.save(registration);
         NotificationType type = status == RegistrationStatus.WAITING_LIST
                 ? NotificationType.WAITING_LIST_JOINED : NotificationType.REGISTRATION_CREATED;
         notifications.notify(userId, type, "Workshop registration", registrationMessage(status),
                 Map.of("workshopId", workshopId.toString(), "registrationId", saved.getId().toString()));
         return RegistrationResponse.from(saved);
+    }
+
+    private RegistrationResponse idempotentResult(UUID userId, UUID workshopId, UUID idempotencyKey) {
+        Registration existing = registrations.findByUserIdAndIdempotencyKey(userId, idempotencyKey).orElse(null);
+        if (existing == null) return null;
+        if (!existing.getWorkshop().getId().equals(workshopId)) {
+            throw new ConflictException("Idempotency-Key was already used for another workshop.");
+        }
+        return RegistrationResponse.from(existing);
     }
 
     @Transactional
@@ -143,7 +162,8 @@ public class RegistrationService {
     }
 
     private UserEntity activeUser(UUID userId) {
-        UserEntity user = users.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User not found."));
+        UserEntity user = users.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found."));
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new ConflictException("Only active users can register.");
         }

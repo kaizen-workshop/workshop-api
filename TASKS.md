@@ -321,7 +321,7 @@ userId, action, entity, entityId, previousValue, newValue, timestamp, ip
 Status:
 
 ```text
-[ ]
+[~]
 ```
 
 Add `createdAt`/`updatedAt`, incremental synchronization where needed, appropriate HTTP
@@ -331,6 +331,10 @@ operations.
 
 Synchronization contract: resources that need incremental sync expose `createdAt`,
 `updatedAt` and, when appropriate, an `updatedAfter` filter.
+
+Progress: registration creation now requires a persisted per-user `Idempotency-Key`,
+serializes concurrent retries and returns the original result for the same operation.
+Cancellation, payment/refund idempotency and incremental synchronization remain.
 
 ### TASK-016 — Hardening, observability and release readiness
 

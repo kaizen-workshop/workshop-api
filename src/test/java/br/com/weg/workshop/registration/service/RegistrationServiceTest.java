@@ -58,10 +58,44 @@ class RegistrationServiceTest {
     }
 
     @Test
+    void returnsTheSameRegistrationForAnIdempotentRetry() {
+        UserEntity user = activeUser();
+        Workshop workshop = publishedWorkshop(PaymentMethod.FREE, 1);
+        UUID key = UUID.randomUUID();
+        Registration existing = Registration.create(user, workshop, RegistrationStatus.CONFIRMED,
+                RegistrationPaymentStatus.EXEMPT, key);
+        when(users.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
+        when(registrations.findByUserIdAndIdempotencyKey(user.getId(), key)).thenReturn(Optional.of(existing));
+
+        var response = service.register(user.getId(), workshop.getId(), key);
+
+        assertThat(response.id()).isEqualTo(existing.getId());
+        verifyNoInteractions(workshops);
+        verify(registrations, never()).save(any());
+        verifyNoInteractions(notifications);
+    }
+
+    @Test
+    void rejectsAnIdempotencyKeyReusedForAnotherWorkshop() {
+        UserEntity user = activeUser();
+        Workshop original = publishedWorkshop(PaymentMethod.FREE, 1);
+        Workshop requested = publishedWorkshop(PaymentMethod.FREE, 1);
+        UUID key = UUID.randomUUID();
+        Registration existing = Registration.create(user, original, RegistrationStatus.CONFIRMED,
+                RegistrationPaymentStatus.EXEMPT, key);
+        when(users.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
+        when(registrations.findByUserIdAndIdempotencyKey(user.getId(), key)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.register(user.getId(), requested.getId(), key))
+                .isInstanceOf(ConflictException.class);
+        verifyNoInteractions(workshops);
+    }
+
+    @Test
     void rejectsASecondValidRegistrationForTheSameWorkshop() {
         UserEntity user = activeUser();
         Workshop workshop = publishedWorkshop(PaymentMethod.FREE, 2);
-        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(users.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
         when(workshops.findByIdForUpdate(workshop.getId())).thenReturn(Optional.of(workshop));
         when(registrations.existsByUserIdAndWorkshopIdAndStatusIn(eq(user.getId()), eq(workshop.getId()), anyCollection())).thenReturn(true);
 
@@ -91,7 +125,7 @@ class RegistrationServiceTest {
     void requiresAnActiveUser() {
         UserEntity user = UserEntity.create("User", "user", "user@example.com", null, null, null, "hash", Role.PARTICIPANT);
         Workshop workshop = publishedWorkshop(PaymentMethod.FREE, 1);
-        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(users.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> service.register(user.getId(), workshop.getId()))
                 .isInstanceOf(ConflictException.class);
@@ -99,7 +133,7 @@ class RegistrationServiceTest {
     }
 
     private void givenRegistrable(UserEntity user, Workshop workshop, long occupied) {
-        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(users.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
         when(workshops.findByIdForUpdate(workshop.getId())).thenReturn(Optional.of(workshop));
         when(registrations.existsByUserIdAndWorkshopIdAndStatusIn(eq(user.getId()), eq(workshop.getId()), anyCollection())).thenReturn(false);
         when(registrations.countByWorkshopIdAndStatusIn(eq(workshop.getId()), anyCollection())).thenReturn(occupied);

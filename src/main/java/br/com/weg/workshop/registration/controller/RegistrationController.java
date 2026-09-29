@@ -26,8 +26,11 @@ public class RegistrationController {
 
     @PostMapping("/api/v1/workshops/{workshopId}/registrations")
     @Operation(summary = "Register the authenticated user for a workshop")
-    public ResponseEntity<RegistrationResponse> register(@PathVariable UUID workshopId, Authentication authentication) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.register(userId(authentication), workshopId));
+    public ResponseEntity<RegistrationResponse> register(@PathVariable UUID workshopId,
+                                                          @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+                                                          Authentication authentication) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(service.register(userId(authentication), workshopId, idempotencyKey));
     }
 
     @PatchMapping("/api/v1/registrations/{registrationId}/cancel")

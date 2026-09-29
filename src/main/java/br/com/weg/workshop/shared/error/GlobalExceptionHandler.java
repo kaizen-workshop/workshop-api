@@ -11,8 +11,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -36,8 +38,9 @@ public class GlobalExceptionHandler {
         return response(request, HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Invalid request.", errors);
     }
 
-    @ExceptionHandler({ConstraintViolationException.class, IllegalArgumentException.class})
-    public ResponseEntity<ApiErrorResponse> handleInvalidRequest(HttpServletRequest request, RuntimeException exception) {
+    @ExceptionHandler({ConstraintViolationException.class, IllegalArgumentException.class,
+            MissingRequestHeaderException.class, MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<ApiErrorResponse> handleInvalidRequest(HttpServletRequest request, Exception exception) {
         return response(request, HttpStatus.BAD_REQUEST, ErrorCode.INVALID_REQUEST, "Invalid request.", List.of());
     }
 

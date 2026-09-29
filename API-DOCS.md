@@ -23,7 +23,7 @@
 | `PATCH /api/v1/workshops/{id}/schedule` | Creator or `ADMIN` | Schedules publication. |
 | `PATCH /api/v1/workshops/{id}/publish`, `/close`, `/cancel`, `/archive` | Creator or `ADMIN` | Performs the corresponding valid lifecycle transition. |
 | `POST /api/v1/workshops/{id}/duplicate` | Creator or `ADMIN` | Creates a draft copy. |
-| `POST /api/v1/workshops/{id}/registrations` | Authenticated active user | Creates the caller's registration. Returns `201`; confirms a free registration, creates a pending paid registration or adds the caller to the waiting list when capacity is full. |
+| `POST /api/v1/workshops/{id}/registrations` | Authenticated active user | Creates the caller's registration using a required UUID `Idempotency-Key`. Returns `201`; retries with the same user/key/workshop return the original registration, free registrations are confirmed, paid registrations are pending and full workshops use the waiting list. |
 | `PATCH /api/v1/registrations/{id}/cancel` | Registration owner | Cancels a valid registration. If it occupied capacity, promotes the first eligible waiting-list participant. |
 | `GET /api/v1/workshops/{id}/registrations` | Workshop creator or `ADMIN` | Lists workshop registrations, paginated and optionally filtered by registration `status`. |
 | `POST /api/v1/registrations/{id}/payments` | Registration owner | Creates a simulated payment for a pending PIX/card registration. Requires a UUID `Idempotency-Key`; repeated use for the same registration returns the prior `PaymentResponse`. |
@@ -176,6 +176,12 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - Bulk attendance is transactional, rejects duplicate IDs, locks the selected registrations and validates that every registration belongs to the managed workshop before applying any change.
 - The dashboard scopes counts to the caller's workshops. `ADMIN` receives global counts.
 - `V13__add_registration_attendance.sql` adds attendance state/audit columns, consistency checks and a workshop-attendance index.
+
+## Mobile reliability — partial
+
+- Registration creation now requires a UUID `Idempotency-Key`, persisted under a per-user unique index. Reusing the key for the same workshop returns the original registration without duplicating notifications; reuse for another workshop is rejected.
+- The registering user and workshop are pessimistically locked, so concurrent retries for the same operation converge before capacity and waiting-list decisions.
+- `V14__add_registration_idempotency.sql` backfills existing registrations with their own IDs and adds the non-null idempotency key/index.
 
 
 ## Cross-cutting classes

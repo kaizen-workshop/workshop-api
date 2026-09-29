@@ -208,6 +208,10 @@ class FoundationIntegrationTest {
                         .with(user("participant").roles("PARTICIPANT")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mockMvc.perform(post("/api/v1/workshops/{id}/registrations", java.util.UUID.randomUUID())
+                        .with(user(java.util.UUID.randomUUID().toString()).roles("PARTICIPANT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
     @Test
