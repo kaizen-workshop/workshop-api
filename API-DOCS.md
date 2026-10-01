@@ -64,6 +64,9 @@
 | `PATCH /api/v1/arweg/workshops/{id}/attendance` | Workshop creator or `ADMIN` | Atomically records up to 500 attendance updates. |
 | `GET /api/v1/arweg/workshops/{id}/participants/export` | Workshop creator or `ADMIN` | Exports the filtered participant list as `CSV` or `XLSX`. |
 | `GET /api/v1/arweg/dashboard` | `ARWEG`, `ADMIN` | Returns workshop, registration, waiting-list and attendance totals scoped to managed workshops; admins see all workshops. |
+| `GET /api/v1/admin/metrics/workshops` | `ADMIN` | Paged `WorkshopMetricResponse` with registration, confirmed and attended counts. Optional `status`, `createdFrom`, `createdTo`, `page`, `size`, `sort`. Returns `400` for an invalid period. |
+| `GET /api/v1/admin/metrics/posts` | `ADMIN` | Paged `PostMetricResponse` with like and comment counts. Optional `status`, `createdFrom`, `createdTo`, `page`, `size`, `sort`. Returns `400` for an invalid period. |
+| `GET /api/v1/admin/audit` | `ADMIN` | Paged `AuditResponse`. Optional `userId`, `action`, `entity`, `entityId`, `from`, `to`, `page`, `size`, `sort`. Returns `400` for an invalid period. |
 | `GET /actuator/health` | Public | Health check. |
 | `GET /v3/api-docs`, `/swagger-ui.html` | Public | OpenAPI document and Swagger UI. |
 
@@ -177,6 +180,14 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - Bulk attendance is transactional, rejects duplicate IDs, locks the selected registrations and validates that every registration belongs to the managed workshop before applying any change.
 - The dashboard scopes counts to the caller's workshops. `ADMIN` receives global counts.
 - `V13__add_registration_attendance.sql` adds attendance state/audit columns, consistency checks and a workshop-attendance index.
+
+## Metrics and administrative audit
+
+- `AdminInsightController` exposes only `ADMIN` routes under `/api/v1/admin`. All three responses are paged. Time filters are inclusive at the start and exclusive at the end; an end that is not later than the start returns `400`.
+- `MetricService`, `WorkshopRepository` and `PostRepository` count registrations, confirmed registrations, attendance marks, likes and comments in paginated database queries. Workshop registration totals include cancelled records; confirmed and attendance counts use their current statuses.
+- `AuditService` stores actor UUID, action, entity, entity UUID, prior/new values, timestamp and the request's remote IP when available. It records user provisioning, workshop/post creation and management, attendance changes and scheduled publication in the same transaction as the business action. The audit deliberately excludes passwords, tokens and payment credentials. Automated scheduled publications have a null actor/IP.
+- `AdministrativeAudit`, `AdministrativeAuditRepository`, `AuditResponse`, `WorkshopMetricResponse` and `PostMetricResponse` define persistence and API contracts. `V15__create_administrative_audit.sql` creates the audit table and filtered history indexes.
+- PostgreSQL/Testcontainers coverage applies migration V15, validates Hibernate schema mapping, executes both populated metric queries and verifies audit storage/filtering.
 
 ## Mobile reliability — partial
 

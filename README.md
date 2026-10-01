@@ -7,8 +7,8 @@ The project is a modular Spring Boot monolith designed primarily for a mobile cl
 
 Foundation, identity, profile/preferences, workshop catalogue, media, registrations,
 payments, participant history/calendar/evaluations, posts/feed, workshop groups/chat,
-persistent notifications and workshop administration are implemented. Audit, mobile
-synchronization and release hardening remain pending.
+persistent notifications, workshop administration, metrics and administrative audit
+are implemented. Mobile synchronization and release hardening remain in progress.
 
 The delivery plan is maintained in [TASKS.md](TASKS.md). It is organized as cohesive
 product flows instead of small technical fragments.

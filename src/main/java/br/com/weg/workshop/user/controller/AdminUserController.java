@@ -6,6 +6,8 @@ import br.com.weg.workshop.user.service.UserAdministrationService;
 import jakarta.validation.Valid;
 import java.net.URI;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import java.util.UUID;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,8 +21,8 @@ public class AdminUserController {
     public AdminUserController(UserAdministrationService service) { this.service = service; }
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<UserResponse> create(@Valid @RequestBody CreateUserRequest request) {
-        UserResponse response = service.create(request);
+    public ResponseEntity<UserResponse> create(@Valid @RequestBody CreateUserRequest request, Authentication authentication) {
+        UserResponse response = service.create(UUID.fromString(authentication.getName()), request);
         return ResponseEntity.created(URI.create("/api/v1/admin/users/" + response.id())).body(response);
     }
 }

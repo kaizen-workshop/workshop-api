@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import br.com.weg.workshop.preference.domain.*;
 import br.com.weg.workshop.preference.repository.*;
 import br.com.weg.workshop.group.service.GroupLifecycleService;
+import br.com.weg.workshop.audit.service.AuditService;
 import br.com.weg.workshop.shared.error.ConflictException;
 import br.com.weg.workshop.user.domain.*;
 import br.com.weg.workshop.user.repository.UserRepository;
@@ -25,7 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WorkshopServiceTest {
- @Mock WorkshopRepository workshops; @Mock ThemeRepository themes; @Mock CategoryRepository categories; @Mock UserRepository users; @Mock GroupLifecycleService groupLifecycle; @InjectMocks WorkshopService service;
+ @Mock WorkshopRepository workshops; @Mock ThemeRepository themes; @Mock CategoryRepository categories; @Mock UserRepository users; @Mock GroupLifecycleService groupLifecycle; @Mock AuditService audit; @InjectMocks WorkshopService service;
  @Test void createsDraftWithValidatedReferences(){UserEntity creator=user(); Theme theme=Theme.create("Java",null); Category category=Category.create("Technology",null); when(users.findById(creator.getId())).thenReturn(Optional.of(creator));when(themes.findById(theme.getId())).thenReturn(Optional.of(theme));when(categories.findById(category.getId())).thenReturn(Optional.of(category));when(workshops.save(any())).thenAnswer(i->i.getArgument(0));var response=service.create(creator.getId(),request(theme,category));assertThat(response.status()).isEqualTo("DRAFT");assertThat(response.createdBy()).isEqualTo(creator.getId());verify(groupLifecycle).createFor(any(Workshop.class));}
  @Test void allowsOnlyDocumentedTransitions(){Workshop workshop=created();when(workshops.findById(workshop.getId())).thenReturn(Optional.of(workshop));service.publish(workshop.getCreatedBy().getId(),false,workshop.getId());assertThat(workshop.getStatus()).isEqualTo(WorkshopStatus.PUBLISHED);verify(groupLifecycle).activateFor(workshop);service.close(workshop.getCreatedBy().getId(),false,workshop.getId());assertThat(workshop.getStatus()).isEqualTo(WorkshopStatus.CLOSED);verify(groupLifecycle).deactivateFor(workshop);service.archive(workshop.getCreatedBy().getId(),false,workshop.getId());assertThat(workshop.getStatus()).isEqualTo(WorkshopStatus.ARCHIVED);}
  @Test void rejectsInvalidTransition(){Workshop workshop=created();when(workshops.findById(workshop.getId())).thenReturn(Optional.of(workshop));assertThatThrownBy(()->service.close(workshop.getCreatedBy().getId(),false,workshop.getId())).isInstanceOf(ConflictException.class);}
