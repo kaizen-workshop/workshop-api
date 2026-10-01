@@ -13,6 +13,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.WebRequest;
+import java.time.Instant;
 
 @RestController
 @RequestMapping("/api/v1/workshops")
@@ -22,8 +24,8 @@ public class WorkshopController {
  @PostMapping @PreAuthorize("hasAnyRole('ARWEG','ADMIN')") @Operation(summary="Create a workshop draft")
  public ResponseEntity<WorkshopResponse> create(@Valid @RequestBody WorkshopRequest request,Authentication authentication){return ResponseEntity.status(HttpStatus.CREATED).body(service.create(userId(authentication),request));}
  @GetMapping @Operation(summary="List workshops visible to the caller")
- public Page<WorkshopResponse> list(@RequestParam(required=false) WorkshopStatus status,@RequestParam(required=false) UUID themeId,@RequestParam(required=false) UUID categoryId,@PageableDefault(size=20,sort="startDate") Pageable pageable,Authentication authentication){return service.list(userId(authentication),admin(authentication),status,themeId,categoryId,pageable);}
- @GetMapping("/{id}") @Operation(summary="Get workshop details") public WorkshopResponse get(@PathVariable UUID id,Authentication authentication){return service.get(userId(authentication),admin(authentication),id);}
+ public Page<WorkshopResponse> list(@RequestParam(required=false) WorkshopStatus status,@RequestParam(required=false) UUID themeId,@RequestParam(required=false) UUID categoryId,@RequestParam(required=false) Instant updatedAfter,@PageableDefault(size=20,sort="startDate") Pageable pageable,Authentication authentication){return service.list(userId(authentication),admin(authentication),status,themeId,categoryId,updatedAfter,pageable);}
+ @GetMapping("/{id}") @Operation(summary="Get workshop details with conditional caching") public ResponseEntity<WorkshopResponse> get(@PathVariable UUID id,Authentication authentication,WebRequest request){WorkshopResponse response=service.get(userId(authentication),admin(authentication),id);String etag="\""+response.id()+"-"+response.updatedAt()+"\"";CacheControl cache=CacheControl.noCache().cachePrivate();if(request.checkNotModified(etag))return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).cacheControl(cache).build();return ResponseEntity.ok().eTag(etag).cacheControl(cache).body(response);}
  @PutMapping("/{id}") @PreAuthorize("hasAnyRole('ARWEG','ADMIN')") @Operation(summary="Update a draft or scheduled workshop") public WorkshopResponse update(@PathVariable UUID id,@Valid @RequestBody WorkshopRequest request,Authentication authentication){return service.update(userId(authentication),admin(authentication),id,request);}
  @PatchMapping("/{id}/schedule") @PreAuthorize("hasAnyRole('ARWEG','ADMIN')") public WorkshopResponse schedule(@PathVariable UUID id,@Valid @RequestBody SchedulePublicationRequest request,Authentication authentication){return service.schedule(userId(authentication),admin(authentication),id,request);}
  @PatchMapping("/{id}/publish") @PreAuthorize("hasAnyRole('ARWEG','ADMIN')") public WorkshopResponse publish(@PathVariable UUID id,Authentication authentication){return service.publish(userId(authentication),admin(authentication),id);}

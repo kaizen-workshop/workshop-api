@@ -12,6 +12,12 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
 
     Optional<Registration> findByUserIdAndIdempotencyKey(UUID userId, UUID idempotencyKey);
 
+    boolean existsByUserIdAndCancellationIdempotencyKey(UUID userId, UUID cancellationIdempotencyKey);
+
+    @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Registration r where r.id = :id")
+    Optional<Registration> findByIdForUpdate(@Param("id") UUID id);
+
     Optional<Registration> findFirstByUserIdAndWorkshopIdOrderByCreatedAtDesc(UUID userId, UUID workshopId);
 
     @Query(value = "select count(*) from workshop.registration r where r.workshop_id = :workshopId "

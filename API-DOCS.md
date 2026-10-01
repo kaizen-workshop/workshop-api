@@ -17,15 +17,15 @@
 | `POST /api/v1/admin/categories` | `ADMIN` | Creates a category from `TaxonomyRequest`. Returns `201`. |
 | `PATCH /api/v1/admin/categories/{id}` | `ADMIN` | Updates a category's provided name, description and/or active state. |
 | `POST /api/v1/workshops` | `ARWEG`, `ADMIN` | Creates a workshop in `DRAFT`. |
-| `GET /api/v1/workshops` | Authenticated | Lists visible workshops, paginated with optional `status`, `themeId` and `categoryId` filters. |
-| `GET /api/v1/workshops/{id}` | Authenticated | Returns a published workshop; creators and admins can also access non-public states. |
+| `GET /api/v1/workshops` | Authenticated | Lists visible workshops, paginated with optional `status`, `themeId`, `categoryId` and exclusive `updatedAfter` filters. |
+| `GET /api/v1/workshops/{id}` | Authenticated | Returns a published workshop; creators and admins can also access non-public states. Sends a private ETag and returns `304` for matching `If-None-Match`. |
 | `PUT /api/v1/workshops/{id}` | Creator or `ADMIN` | Replaces editable fields of a draft or scheduled workshop. |
 | `PATCH /api/v1/workshops/{id}/schedule` | Creator or `ADMIN` | Schedules publication. |
 | `PATCH /api/v1/workshops/{id}/publish`, `/close`, `/cancel`, `/archive` | Creator or `ADMIN` | Performs the corresponding valid lifecycle transition. |
 | `POST /api/v1/workshops/{id}/duplicate` | Creator or `ADMIN` | Creates a draft copy. |
 | `POST /api/v1/workshops/{id}/registrations` | Authenticated active user | Creates the caller's registration using a required UUID `Idempotency-Key`. Returns `201`; retries with the same user/key/workshop return the original registration, free registrations are confirmed, paid registrations are pending and full workshops use the waiting list. |
 | `GET /api/v1/workshops/{id}/registrations/me` | Authenticated | Returns the caller's latest registration for the workshop, including cancelled/refunded state, or `404` when none exists. |
-| `PATCH /api/v1/registrations/{id}/cancel` | Registration owner | Cancels a valid registration. If it occupied capacity, promotes the first eligible waiting-list participant. |
+| `PATCH /api/v1/registrations/{id}/cancel` | Registration owner | Requires UUID `Idempotency-Key`. Cancels a valid registration and promotes the first eligible waiting-list participant if capacity is freed. A retry with the same key skips settlement/promotion; a key reused for another cancellation returns `409`. |
 | `GET /api/v1/workshops/{id}/registrations` | Workshop creator or `ADMIN` | Lists workshop registrations, paginated and optionally filtered by registration `status`. |
 | `POST /api/v1/registrations/{id}/payments` | Registration owner | Creates a simulated payment for a pending PIX/card registration. Requires a UUID `Idempotency-Key`; repeated use for the same registration returns the prior `PaymentResponse`. |
 | `PATCH /api/v1/payments/{id}/simulate/paid` | `ARWEG`, `ADMIN` | Simulates a successful internal gateway callback and confirms the registration. |
@@ -44,7 +44,7 @@
 | `GET /api/v1/workshops/{id}/evaluations/summary` | Workshop creator or `ADMIN` | Returns count and average overall/content/instructor/organization ratings. |
 | `POST /api/v1/posts`, `PUT /api/v1/posts/{id}` | `ARWEG`, `ADMIN` | Creates or updates a draft post owned by the caller (or any post for ADMIN). |
 | `PATCH /api/v1/posts/{id}/schedule`, `/publish`, `/archive` | Post owner or `ADMIN` | Applies a valid publication lifecycle transition. |
-| `GET /api/v1/posts/feed` | Authenticated | Lists published posts, paginated by published time; highlights are returned as feed metadata. |
+| `GET /api/v1/posts/feed` | Authenticated | Lists published posts, paginated by published time, with optional exclusive `updatedAfter` filter; highlights are returned as feed metadata. |
 | `PUT` / `DELETE /api/v1/posts/{id}/like` | Authenticated | Adds/removes the caller's idempotent like. |
 | `POST` / `GET /api/v1/posts/{id}/comments` | Authenticated | Creates or paginates comments on a published post. |
 | `GET /api/v1/groups` | Authenticated | Lists groups accessible through a confirmed paid/exempt registration. ARWEG sees managed workshop groups and ADMIN sees all groups. |
@@ -54,7 +54,7 @@
 | `PATCH /api/v1/groups/{id}/messages/{messageId}` | Message author | Edits a non-deleted message while the group is active. |
 | `DELETE /api/v1/groups/{id}/messages/{messageId}` | Message author, workshop creator or `ADMIN` | Soft-deletes a message and publishes its tombstone representation. |
 | `STOMP /ws` | Authenticated | Accepts a Bearer JWT in the STOMP `CONNECT` `Authorization` header. Send to `/app/groups/{id}/messages`; authorized subscribers receive committed messages on `/topic/groups/{id}`. |
-| `GET /api/v1/notifications` | Authenticated | Lists the caller's persistent notifications, paginated newest-first. |
+| `GET /api/v1/notifications` | Authenticated | Lists the caller's persistent notifications, paginated by update time with optional exclusive `updatedAfter` filter. |
 | `PATCH /api/v1/notifications/{id}/read` | Notification owner | Idempotently marks one notification as read. |
 | `PATCH /api/v1/notifications/read-all` | Authenticated | Marks all caller notifications as read and returns `204`. |
 | `POST /api/v1/notification-devices` | Authenticated | Registers, reassigns or reactivates an Android/iOS push token without returning the token. |
@@ -189,12 +189,17 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `AdministrativeAudit`, `AdministrativeAuditRepository`, `AuditResponse`, `WorkshopMetricResponse` and `PostMetricResponse` define persistence and API contracts. `V15__create_administrative_audit.sql` creates the audit table and filtered history indexes.
 - PostgreSQL/Testcontainers coverage applies migration V15, validates Hibernate schema mapping, executes both populated metric queries and verifies audit storage/filtering.
 
-## Mobile reliability — partial
+## Mobile reliability
 
 - Registration creation now requires a UUID `Idempotency-Key`, persisted under a per-user unique index. Reusing the key for the same workshop returns the original registration without duplicating notifications; reuse for another workshop is rejected.
 - The registering user and workshop are pessimistically locked, so concurrent retries for the same operation converge before capacity and waiting-list decisions.
 - `V14__add_registration_idempotency.sql` backfills existing registrations with their own IDs and adds the non-null idempotency key/index.
 - Registration responses expose `waitingListPosition` only while the registration is on the waiting list. The position is calculated from the stable registration timestamp/UUID order and disappears after promotion.
+- Cancellation requires a UUID `Idempotency-Key`. `RegistrationService` locks the workshop and refreshes the registration after acquiring the lock; the key is persisted with a per-user unique index. Retried cancellation skips payment settlement, refunds and waiting-list promotion. Reusing a key on another registration returns `409`.
+- Payment creation locks the registration before checking existing payments and invoking the gateway, so concurrent retries converge on one payment and one payment event. Repeated simulation callbacks in the already reached `PAID` or `DECLINED` state return the prior payment without duplicate events/notifications. Payment creation continues to require a UUID `Idempotency-Key`.
+- `WorkshopResponse` and `NotificationResponse` expose `createdAt` and `updatedAt`. Workshop catalogue, published post feed and notification centre accept an exclusive `updatedAfter` timestamp; only content already visible to the caller is returned. Clients should deduplicate by resource ID and periodically perform a full page refresh to detect content that left a visible collection, such as archived posts.
+- Workshop detail responses use an ETag derived from ID and `updatedAt` with `Cache-Control: private, no-cache`. Clients may send `If-None-Match` for a `304` response after access control is checked.
+- `V16__add_cancellation_idempotency.sql` adds the cancellation key index and backfills notification update timestamps. PostgreSQL/Testcontainers tests cover concurrent cancellation and payment retries, incremental queries and the migration.
 
 
 ## Cross-cutting classes

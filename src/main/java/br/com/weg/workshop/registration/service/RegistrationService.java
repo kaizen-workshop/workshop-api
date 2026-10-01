@@ -10,6 +10,7 @@ import br.com.weg.workshop.user.domain.*;
 import br.com.weg.workshop.user.repository.UserRepository;
 import br.com.weg.workshop.workshop.domain.*;
 import br.com.weg.workshop.workshop.repository.WorkshopRepository;
+import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.*;
 import org.springframework.data.domain.*;
@@ -28,13 +29,15 @@ public class RegistrationService {
     private final WorkshopRepository workshops;
     private final UserRepository users;
     private final NotificationService notifications;
+    private final EntityManager entityManager;
 
     public RegistrationService(RegistrationRepository registrations, WorkshopRepository workshops, UserRepository users,
-                               NotificationService notifications) {
+                               NotificationService notifications, EntityManager entityManager) {
         this.registrations = registrations;
         this.workshops = workshops;
         this.users = users;
         this.notifications = notifications;
+        this.entityManager = entityManager;
     }
 
     @Transactional
@@ -77,7 +80,7 @@ public class RegistrationService {
 
     @Transactional
     public RegistrationResponse cancel(UUID userId, UUID registrationId) {
-        return RegistrationResponse.from(cancelForPayment(userId, registrationId));
+        return RegistrationResponse.from(cancelForPayment(userId, registrationId, UUID.randomUUID()).registration());
     }
 
     @Transactional(readOnly = true)
@@ -89,21 +92,35 @@ public class RegistrationService {
 
     @Transactional
     public Registration cancelForPayment(UUID userId, UUID registrationId) {
+        return cancelForPayment(userId, registrationId, UUID.randomUUID()).registration();
+    }
+
+    @Transactional
+    public CancellationResult cancelForPayment(UUID userId, UUID registrationId, UUID idempotencyKey) {
+        if (idempotencyKey == null) throw new IllegalArgumentException("Idempotency-Key is required.");
         Registration registration = registrations.findById(registrationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Registration not found."));
         if (!registration.getUser().getId().equals(userId)) {
             throw new ResourceNotFoundException("Registration not found.");
         }
         Workshop workshop = lockedWorkshop(registration.getWorkshop().getId());
+        entityManager.refresh(registration);
+        if (idempotencyKey.equals(registration.getCancellationIdempotencyKey())) {
+            return new CancellationResult(registration, true);
+        }
+        if (registrations.existsByUserIdAndCancellationIdempotencyKey(userId, idempotencyKey)) {
+            throw new ConflictException("Idempotency-Key was already used for another cancellation.");
+        }
         if (!VALID_STATUSES.contains(registration.getStatus())) {
             throw new ConflictException("Only valid registrations can be cancelled.");
         }
         boolean releasesVacancy = OCCUPYING_STATUSES.contains(registration.getStatus());
+        registration.recordCancellationKey(idempotencyKey);
         registration.cancel();
         if (releasesVacancy) {
             promoteFirstEligible(workshop);
         }
-        return registration;
+        return new CancellationResult(registration, false);
     }
 
     @Transactional
@@ -190,4 +207,6 @@ public class RegistrationService {
                 : null;
         return RegistrationResponse.from(registration, waitingListPosition);
     }
+
+    public record CancellationResult(Registration registration, boolean replayed) { }
 }

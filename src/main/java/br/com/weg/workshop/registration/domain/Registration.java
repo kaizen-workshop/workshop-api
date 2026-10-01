@@ -38,6 +38,8 @@ public class Registration {
     @Column(nullable = false, updatable = false)
     private UUID idempotencyKey;
 
+    private UUID cancellationIdempotencyKey;
+
     @Enumerated(EnumType.STRING)
     private AttendanceStatus attendanceStatus;
 
@@ -84,6 +86,10 @@ public class Registration {
         updatedAt = cancelledAt;
     }
 
+    public void recordCancellationKey(UUID key) {
+        cancellationIdempotencyKey = Objects.requireNonNull(key);
+    }
+
     public void promote(RegistrationStatus promotedStatus, RegistrationPaymentStatus promotedPaymentStatus) {
         status = promotedStatus;
         paymentStatus = promotedPaymentStatus;
@@ -124,4 +130,5 @@ public class Registration {
     public Instant getAttendanceMarkedAt() { return attendanceMarkedAt; }
     public UserEntity getAttendanceMarkedBy() { return attendanceMarkedBy; }
     public UUID getIdempotencyKey() { return idempotencyKey; }
+    public UUID getCancellationIdempotencyKey() { return cancellationIdempotencyKey; }
 }

@@ -13,6 +13,7 @@ import br.com.weg.workshop.user.domain.*;
 import br.com.weg.workshop.user.repository.UserRepository;
 import br.com.weg.workshop.workshop.domain.*;
 import br.com.weg.workshop.workshop.repository.WorkshopRepository;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
@@ -28,6 +29,7 @@ class RegistrationServiceTest {
     @Mock WorkshopRepository workshops;
     @Mock UserRepository users;
     @Mock NotificationService notifications;
+    @Mock EntityManager entityManager;
     @InjectMocks RegistrationService service;
 
     @Test
@@ -121,6 +123,41 @@ class RegistrationServiceTest {
         assertThat(response.status()).isEqualTo("CANCELLED");
         assertThat(waiting.getStatus()).isEqualTo(RegistrationStatus.CONFIRMED);
         assertThat(waiting.getPaymentStatus()).isEqualTo(RegistrationPaymentStatus.EXEMPT);
+    }
+
+    @Test
+    void cancellationRetryReturnsExistingResultWithoutPromotingAgain() {
+        UserEntity owner = activeUser();
+        Workshop workshop = publishedWorkshop(PaymentMethod.FREE, 1);
+        Registration confirmed = Registration.create(owner, workshop, RegistrationStatus.CONFIRMED,
+                RegistrationPaymentStatus.EXEMPT);
+        UUID key = UUID.randomUUID();
+        when(registrations.findById(confirmed.getId())).thenReturn(Optional.of(confirmed));
+        when(workshops.findByIdForUpdate(workshop.getId())).thenReturn(Optional.of(workshop));
+
+        var first = service.cancelForPayment(owner.getId(), confirmed.getId(), key);
+        var retry = service.cancelForPayment(owner.getId(), confirmed.getId(), key);
+
+        assertThat(first.replayed()).isFalse();
+        assertThat(retry.replayed()).isTrue();
+        assertThat(retry.registration().getStatus()).isEqualTo(RegistrationStatus.CANCELLED);
+        verify(registrations, times(1)).findFirstEligibleWaitingListEntry(workshop.getId());
+    }
+
+    @Test
+    void rejectsCancellationKeyUsedForAnotherRegistration() {
+        UserEntity owner = activeUser();
+        Workshop workshop = publishedWorkshop(PaymentMethod.FREE, 2);
+        Registration confirmed = Registration.create(owner, workshop, RegistrationStatus.CONFIRMED,
+                RegistrationPaymentStatus.EXEMPT);
+        UUID key = UUID.randomUUID();
+        when(registrations.findById(confirmed.getId())).thenReturn(Optional.of(confirmed));
+        when(workshops.findByIdForUpdate(workshop.getId())).thenReturn(Optional.of(workshop));
+        when(registrations.existsByUserIdAndCancellationIdempotencyKey(owner.getId(), key)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.cancelForPayment(owner.getId(), confirmed.getId(), key))
+                .isInstanceOf(ConflictException.class);
+        assertThat(confirmed.getStatus()).isEqualTo(RegistrationStatus.CONFIRMED);
     }
 
     @Test

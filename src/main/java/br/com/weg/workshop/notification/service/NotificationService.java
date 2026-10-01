@@ -34,8 +34,8 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
-    public Page<NotificationResponse> list(UUID userId, Pageable pageable) {
-        return notifications.findByUserId(userId, pageable).map(this::response);
+    public Page<NotificationResponse> list(UUID userId, Instant updatedAfter, Pageable pageable) {
+        return notifications.findForUser(userId, updatedAfter, pageable).map(this::response);
     }
 
     @Transactional
@@ -112,7 +112,8 @@ public class NotificationService {
             .orElseThrow(() -> new ResourceNotFoundException("User not found.")); }
     private NotificationResponse response(Notification notification) {
         return new NotificationResponse(notification.getId(), notification.getType().name(), notification.getTitle(),
-                notification.getMessage(), notification.getReadAt() != null, data(notification), notification.getCreatedAt());
+                notification.getMessage(), notification.getReadAt() != null, data(notification),
+                notification.getCreatedAt(), notification.getUpdatedAt());
     }
     private Map<String, String> data(Notification notification) {
         try { return objectMapper.readValue(notification.getDataJson(), DATA_TYPE); }

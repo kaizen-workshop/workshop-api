@@ -43,7 +43,7 @@ class PaymentServiceTest {
     void createsPendingPaymentIdempotently() {
         Registration registration = registration(false, LocalDate.now().plusDays(5));
         UUID key = UUID.randomUUID();
-        when(registrations.findById(registration.getId())).thenReturn(Optional.of(registration));
+        when(registrations.findByIdForUpdate(registration.getId())).thenReturn(Optional.of(registration));
         when(payments.findByIdempotencyKey(key)).thenReturn(Optional.empty());
         when(payments.findByRegistrationId(registration.getId())).thenReturn(Optional.empty());
         when(gateway.createPayment(any())).thenReturn("simulated-reference");
@@ -61,7 +61,7 @@ class PaymentServiceTest {
         Registration registration = registration(false, LocalDate.now().plusDays(5));
         UUID key = UUID.randomUUID();
         Payment payment = Payment.create(registration, BigDecimal.TEN, PaymentMethod.PIX, "reference", key);
-        when(registrations.findById(registration.getId())).thenReturn(Optional.of(registration));
+        when(registrations.findByIdForUpdate(registration.getId())).thenReturn(Optional.of(registration));
         when(payments.findByIdempotencyKey(key)).thenReturn(Optional.of(payment));
 
         var response = service.create(registration.getUser().getId(), registration.getId(), key);
@@ -88,7 +88,8 @@ class PaymentServiceTest {
         Registration registration = registration(true, LocalDate.now().plusDays(1));
         registration.cancel();
         Payment payment = paidPayment(registration);
-        when(registrationService.cancelForPayment(registration.getUser().getId(), registration.getId())).thenReturn(registration);
+        when(registrationService.cancelForPayment(eq(registration.getUser().getId()), eq(registration.getId()), any(UUID.class)))
+                .thenReturn(new RegistrationService.CancellationResult(registration, false));
         when(payments.findByRegistrationId(registration.getId())).thenReturn(Optional.of(payment));
 
         service.cancelRegistration(registration.getUser().getId(), registration.getId());
@@ -103,7 +104,8 @@ class PaymentServiceTest {
         Registration registration = registration(false, LocalDate.now().plusDays(1));
         registration.cancel();
         Payment payment = paidPayment(registration);
-        when(registrationService.cancelForPayment(registration.getUser().getId(), registration.getId())).thenReturn(registration);
+        when(registrationService.cancelForPayment(eq(registration.getUser().getId()), eq(registration.getId()), any(UUID.class)))
+                .thenReturn(new RegistrationService.CancellationResult(registration, false));
         when(payments.findByRegistrationId(registration.getId())).thenReturn(Optional.of(payment));
 
         service.cancelRegistration(registration.getUser().getId(), registration.getId());
@@ -111,6 +113,29 @@ class PaymentServiceTest {
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
         assertThat(registration.getPaymentStatus()).isEqualTo(RegistrationPaymentStatus.PAID);
         verify(gateway, never()).refundPayment(anyString(), any());
+    }
+
+    @Test
+    void cancellationReplayDoesNotCallRefundGatewayAgain() {
+        Registration registration = registration(true, LocalDate.now().plusDays(1));
+        registration.cancel();
+        UUID key = UUID.randomUUID();
+        when(registrationService.cancelForPayment(registration.getUser().getId(), registration.getId(), key))
+                .thenReturn(new RegistrationService.CancellationResult(registration, true));
+
+        service.cancelRegistration(registration.getUser().getId(), registration.getId(), key);
+
+        verifyNoInteractions(payments, gateway);
+    }
+
+    @Test
+    void repeatedSuccessfulCallbackReturnsPreviousPaymentWithoutDuplicateEvent() {
+        Registration registration = registration(false, LocalDate.now().plusDays(5));
+        Payment payment = paidPayment(registration);
+        when(payments.findByIdForUpdate(payment.getId())).thenReturn(Optional.of(payment));
+
+        assertThat(service.simulatePaid(payment.getId()).status()).isEqualTo("PAID");
+        verifyNoInteractions(events, notifications);
     }
 
     private Payment paidPayment(Registration registration) {

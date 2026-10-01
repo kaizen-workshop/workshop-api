@@ -7,6 +7,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import br.com.weg.workshop.shared.error.ConflictException;
 import br.com.weg.workshop.user.service.UserAdministrationService;
@@ -16,6 +19,7 @@ import br.com.weg.workshop.preference.service.CategoryService;
 import br.com.weg.workshop.preference.service.PreferenceService;
 import br.com.weg.workshop.preference.service.ThemeService;
 import br.com.weg.workshop.workshop.service.WorkshopService;
+import br.com.weg.workshop.workshop.dto.WorkshopResponse;
 import br.com.weg.workshop.file.service.WorkshopMediaService;
 import br.com.weg.workshop.registration.service.RegistrationService;
 import br.com.weg.workshop.payment.service.PaymentService;
@@ -198,6 +202,25 @@ class FoundationIntegrationTest {
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
         mockMvc.perform(get("/api/v1/arweg/workshops/{id}/participants", java.util.UUID.randomUUID()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void workshopDetailSupportsPrivateConditionalCaching() throws Exception {
+        java.util.UUID userId = java.util.UUID.randomUUID();
+        java.util.UUID workshopId = java.util.UUID.randomUUID();
+        java.time.Instant updatedAt = java.time.Instant.parse("2026-10-01T10:00:00Z");
+        WorkshopResponse response = mock(WorkshopResponse.class);
+        when(response.id()).thenReturn(workshopId);
+        when(response.updatedAt()).thenReturn(updatedAt);
+        when(workshopService.get(userId, false, workshopId)).thenReturn(response);
+        String etag = "\"" + workshopId + "-" + updatedAt + "\"";
+
+        mockMvc.perform(get("/api/v1/workshops/{id}", workshopId)
+                        .with(user(userId.toString()).roles("PARTICIPANT"))
+                        .header("If-None-Match", etag))
+                .andExpect(status().isNotModified())
+                .andExpect(header().string("ETag", etag))
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("private")));
     }
 
     @Test
