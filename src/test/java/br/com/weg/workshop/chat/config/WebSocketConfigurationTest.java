@@ -36,12 +36,52 @@ class WebSocketConfigurationTest {
     }
 
     @Test void clientsCannotSendDirectlyToBrokerAndBypassChatAuthorization() {
+        var user = activeUser();
+        var authentication = authenticated(user);
         var headers = StompHeaderAccessor.create(StompCommand.SEND);
         headers.setDestination("/topic/groups/123");
-        headers.setUser(new UsernamePasswordAuthenticationToken("user", null));
+        headers.setUser(authentication);
         assertThatThrownBy(() -> interceptor().preSend(
                 MessageBuilder.createMessage(new byte[0], headers.getMessageHeaders()), null))
                 .isInstanceOf(IllegalArgumentException.class).hasMessage("Invalid message destination.");
+    }
+
+    @Test void blockedAccountCannotSendOnAnExistingConnection() {
+        var user = activeUser();
+        var authentication = authenticated(user);
+        user.block();
+        var headers = StompHeaderAccessor.create(StompCommand.SEND);
+        headers.setDestination("/app/groups/00000000-0000-0000-0000-000000000001/messages");
+        headers.setUser(authentication);
+        assertThatThrownBy(() -> interceptor().preSend(
+                MessageBuilder.createMessage(new byte[0], headers.getMessageHeaders()), null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Authentication is required.");
+    }
+
+    @Test void passwordChangeInvalidatesExistingSubscription() {
+        var user = activeUser();
+        var authentication = authenticated(user);
+        user.changePassword("another-hash");
+        var headers = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        headers.setDestination("/topic/groups/00000000-0000-0000-0000-000000000001");
+        headers.setUser(authentication);
+        assertThatThrownBy(() -> interceptor().preSend(
+                MessageBuilder.createMessage(new byte[0], headers.getMessageHeaders()), null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Authentication is required.");
+    }
+
+    private UserEntity activeUser() {
+        var user = UserEntity.create("Person", "person", "person@example.com", null, null, null, "hash", Role.PARTICIPANT);
+        user.changePassword("active-hash");
+        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        return user;
+    }
+
+    private UsernamePasswordAuthenticationToken authenticated(UserEntity user) {
+        var authentication = new UsernamePasswordAuthenticationToken(user.getId().toString(), null,
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_PARTICIPANT")));
+        authentication.setDetails(user.getTokenVersion());
+        return authentication;
     }
 
     private ChannelInterceptor interceptor() {

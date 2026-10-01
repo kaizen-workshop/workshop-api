@@ -225,8 +225,9 @@ Update this file in the same change when an endpoint, DTO, domain class, reposit
   Refresh and reset reject blocked/inactive accounts. Logout revokes only the supplied
   refresh token; issued access tokens retain their bounded validity.
 - STOMP CONNECT checks the same stored account/version restrictions. The inbound
-  interceptor preserves its principal and rejects SEND outside the application chat
-  destination, preventing direct publication to `/topic`. Subscriptions check group access.
+  interceptor preserves its principal, rechecks account status, role and token version
+  on SEND/SUBSCRIBE, and rejects SEND outside the application chat destination,
+  preventing direct publication to `/topic`. Subscriptions check group access.
 - `RequestLoggingFilter` generates `X-Request-Id` and logs safe structured request fields:
   request ID, authenticated user ID, method, route template, status and duration.
   No request body, query, authorization header or arbitrary unmatched path is logged.

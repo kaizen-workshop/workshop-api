@@ -60,8 +60,9 @@ the full visible collection to detect removal/archive.
 
 Feed publication is restricted to ARWEG/ADMIN with ownership checks. Messages require
 group access and are paginated by cursor. STOMP CONNECT validates the stored account
-and JWT version; client SEND is restricted to `/app/groups/{id}/messages` and cannot
-publish directly to the broker. Subscriptions validate group access.
+and JWT version; SEND/SUBSCRIBE recheck the current account and token version. Client
+SEND is restricted to `/app/groups/{id}/messages` and cannot publish directly to the
+broker. Subscriptions validate group access.
 
 Evaluation requires a CONFIRMED registration and a workshop whose end date is not in the
 future. A user can evaluate each workshop once; database uniqueness reinforces this.

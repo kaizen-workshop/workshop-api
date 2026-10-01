@@ -54,8 +54,9 @@ public class WebSocketConfiguration implements WebSocketMessageBrokerConfigurer 
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
                 StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
                 if (StompCommand.CONNECT.equals(accessor.getCommand())) authenticate(accessor);
-                if (StompCommand.SEND.equals(accessor.getCommand()) && accessor.getUser() == null) {
-                    throw new IllegalArgumentException("Authentication is required.");
+                if (StompCommand.SEND.equals(accessor.getCommand())
+                        || StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+                    requireCurrentAccount(accessor);
                 }
                 if (StompCommand.SEND.equals(accessor.getCommand())) {
                     String destination = accessor.getDestination();
@@ -87,11 +88,28 @@ public class WebSocketConfiguration implements WebSocketMessageBrokerConfigurer 
             throw new IllegalArgumentException("Password change is required.");
         }
         String role = user.getRole().name();
-        accessor.setUser(new UsernamePasswordAuthenticationToken(
+        var authentication = new UsernamePasswordAuthenticationToken(
                 claims.getSubject(),
                 null,
                 List.of(new SimpleGrantedAuthority("ROLE_" + role))
-        ));
+        );
+        authentication.setDetails(user.getTokenVersion());
+        accessor.setUser(authentication);
+    }
+
+    private void requireCurrentAccount(StompHeaderAccessor accessor) {
+        if (!(accessor.getUser() instanceof UsernamePasswordAuthenticationToken authentication)
+                || !(authentication.getDetails() instanceof Integer version)) {
+            throw new IllegalArgumentException("Authentication is required.");
+        }
+        var user = users.findById(UUID.fromString(authentication.getName()))
+                .orElseThrow(() -> new IllegalArgumentException("Authentication is required."));
+        String role = "ROLE_" + user.getRole().name();
+        if (user.getStatus() == UserStatus.BLOCKED || user.getStatus() == UserStatus.INACTIVE
+                || user.isMustChangePassword() || user.getTokenVersion() != version
+                || authentication.getAuthorities().stream().noneMatch(authority -> role.equals(authority.getAuthority()))) {
+            throw new IllegalArgumentException("Authentication is required.");
+        }
     }
 
     private void authorizeSubscription(StompHeaderAccessor accessor) {
