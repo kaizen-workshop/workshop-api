@@ -40,7 +40,7 @@ class AuthenticationServiceTest {
         when(encoder.matches("password", user.getPasswordHash())).thenReturn(true);
         when(opaque.create()).thenReturn("refresh-token");
         when(opaque.hash("refresh-token")).thenReturn("refresh-hash");
-        when(jwt.createAccessToken(user.getId(), user.getRole(), true)).thenReturn("access-token");
+        when(jwt.createAccessToken(user.getId(), user.getRole(), true, user.getTokenVersion())).thenReturn("access-token");
 
         TokenResponse result = service.login(new LoginRequest("person@example.com", "password"));
 
@@ -58,7 +58,7 @@ class AuthenticationServiceTest {
         when(refreshTokens.findByTokenHash("old-hash")).thenReturn(Optional.of(existing));
         when(opaque.create()).thenReturn("new-token");
         when(opaque.hash("new-token")).thenReturn("new-hash");
-        when(jwt.createAccessToken(user.getId(), user.getRole(), true)).thenReturn("access-token");
+        when(jwt.createAccessToken(user.getId(), user.getRole(), true, user.getTokenVersion())).thenReturn("access-token");
 
         TokenResponse result = service.refresh(new RefreshTokenRequest("old-token"));
 
@@ -88,5 +88,40 @@ class AuthenticationServiceTest {
 
     private UserEntity user() {
         return UserEntity.create("Person", "person", "person@example.com", null, null, null, "hash", Role.PARTICIPANT);
+    }
+
+    @Test
+    void passwordChangeRevokesSessionsAndAdvancesTokenVersion() {
+        UserEntity user = user();
+        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(encoder.matches("old", "hash")).thenReturn(true);
+        when(encoder.encode("new-password")).thenReturn("new-hash");
+        service.changePassword(user.getId(), new ChangePasswordRequest("old", "new-password"));
+        assertThat(user.getTokenVersion()).isEqualTo(1);
+        verify(refreshTokens).revokeAllForUser(eq(user.getId()), any(Instant.class));
+    }
+
+    @Test
+    void blockedUserCannotRefreshExistingSession() {
+        UserEntity user = user();
+        user.block();
+        when(opaque.hash("token")).thenReturn("hash");
+        when(refreshTokens.findByTokenHash("hash")).thenReturn(Optional.of(
+                RefreshToken.create(user, "hash", Instant.now().plusSeconds(60))));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.refresh(new RefreshTokenRequest("token")))
+                .isInstanceOf(BadCredentialsException.class);
+        verifyNoInteractions(jwt);
+    }
+
+    @Test
+    void blockedUserCannotBeReactivatedByPasswordReset() {
+        UserEntity user = user();
+        user.block();
+        when(opaque.hash("token")).thenReturn("hash");
+        when(resetTokens.findByTokenHash("hash")).thenReturn(Optional.of(
+                br.com.weg.workshop.auth.domain.PasswordResetToken.create(user, "hash", Instant.now().plusSeconds(60))));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.resetPassword(new ResetPasswordRequest("token", "new-password")))
+                .isInstanceOf(BadCredentialsException.class);
+        verifyNoInteractions(encoder);
     }
 }

@@ -34,6 +34,8 @@ public class UserEntity {
     private UserStatus status;
     @Column(nullable = false)
     private boolean mustChangePassword;
+    @Column(nullable = false)
+    private int tokenVersion;
     private Instant lastLoginAt;
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -57,6 +59,7 @@ public class UserEntity {
         user.role = role;
         user.status = UserStatus.PENDING;
         user.mustChangePassword = true;
+        user.tokenVersion = 0;
         user.createdAt = Instant.now();
         user.updatedAt = user.createdAt;
         return user;
@@ -71,6 +74,7 @@ public class UserEntity {
     public UserStatus getStatus() { return status; }
     public boolean isMustChangePassword() { return mustChangePassword; }
     public String getPasswordHash() { return passwordHash; }
+    public int getTokenVersion() { return tokenVersion; }
     public String getPhone() { return phone; }
     public String getProfileImage() { return profileImage; }
     public void updateProfile(String name, String phone, String profileImage) { this.name = name; this.phone = phone; this.profileImage = profileImage; this.updatedAt = Instant.now(); }
@@ -79,6 +83,7 @@ public class UserEntity {
         this.passwordHash = passwordHash;
         this.mustChangePassword = false;
         this.status = UserStatus.ACTIVE;
+        this.tokenVersion++;
         this.updatedAt = Instant.now();
     }
 

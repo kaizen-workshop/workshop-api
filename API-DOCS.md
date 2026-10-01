@@ -85,12 +85,12 @@ Bearer tokens use `Authorization: Bearer <access-token>`. `/api/v1/admin/**` req
 - `InitialAccessMailService`: mail abstraction; `SmtpInitialAccessMailService` implements it via `JavaMailSender` without logging credentials.
 - `V2__create_users.sql`: creates users table.
 
-## Authentication module — in progress
+## Authentication module
 
 - `AuthenticationService`: validates credentials and account status, records login, issues access token and changes password after validating the previous password.
-- `JwtService`: signs and validates JWTs using external `JWT_SECRET`; tokens carry user ID, role and mandatory-password-change state.
+- `JwtService`: signs and validates JWTs using external `JWT_SECRET`; tokens carry user ID, role, mandatory-password-change state and token version.
 - `JwtAuthenticationFilter`: validates Bearer requests, establishes Spring Security authentication and rejects invalid/expired tokens.
-- `AuthController`: exposes login and change-password endpoints.
+- `AuthController`: exposes login, password change, refresh rotation, logout and password recovery.
 - `LoginRequest`, `TokenResponse`, `ChangePasswordRequest`: login input, token output and password-change input.
 - `V3__create_auth_tokens.sql`: creates storage reserved for refresh and password-reset tokens.
 
@@ -141,7 +141,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - Cancellation retains the registration flow from TASK-007 and settles the payment in the same transaction: a pending payment is cancelled; a paid registration is refunded only when the workshop starts in more than 48 hours or it is marked as a championship. At exactly 48 hours or later, non-championship cancellations keep the payment as `PAID` and receive no refund. Payment failure or cancellation releases the occupied vacancy and promotes the waiting list through the registration service.
 - `V8__add_championship_and_payments.sql`: adds the immutable `championship` workshop flag plus payment/event tables, unique idempotency and registration constraints, valid-status checks and audit index.
 
-## Evaluation module — in progress
+## Evaluation module
 
 - `ParticipantWorkshopController` exposes the authenticated user's paginated completed-workshop history and calendar. The history includes confirmed or refunded registrations whose workshop end date has passed; the calendar includes pending or confirmed registrations and validates that `to` is not before `from`.
 - `Evaluation`: one rating/comment record per user and workshop, with separate overall, content, instructor and organization ratings, immutable creation time and update time. `V9__create_evaluations.sql` enforces the one-evaluation constraint and 1–5 ratings.
@@ -212,3 +212,35 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 ## Maintenance
 
 Update this file in the same change when an endpoint, DTO, domain class, repository, service, controller, migration or public security behavior changes. Clearly identify incomplete functionality.
+
+## Release security and observability (TASK-016)
+
+- `V17__add_user_token_version.sql` adds a nonnegative token version to users.
+  `UserEntity.changePassword` advances it. `JwtService` includes it in signed tokens.
+- `JwtAuthenticationFilter` verifies current account status, role and version from
+  `UserRepository` on every Bearer request. Blocked/inactive/stale sessions return
+  the standard `401` envelope. Password change/reset revokes all refresh tokens;
+  log in again afterward. Existing tokens without a version claim require a new login.
+- Refresh/reset repositories use pessimistic locking for single-use consumption.
+  Refresh and reset reject blocked/inactive accounts. Logout revokes only the supplied
+  refresh token; issued access tokens retain their bounded validity.
+- STOMP CONNECT checks the same stored account/version restrictions. The inbound
+  interceptor preserves its principal and rejects SEND outside the application chat
+  destination, preventing direct publication to `/topic`. Subscriptions check group access.
+- `RequestLoggingFilter` generates `X-Request-Id` and logs safe structured request fields:
+  request ID, authenticated user ID, method, route template, status and duration.
+  No request body, query, authorization header or arbitrary unmatched path is logged.
+- `application-prod.yml` requires external database, SMTP and JWT configuration,
+  enables ECS JSON logs and suppresses health/error internals. The unused default
+  in-memory Spring user auto-configuration is excluded.
+- `/actuator/metrics` and `/actuator/info` require ADMIN. Public health probes expose
+  status without details; mail connectivity is excluded. Metrics include standard
+  HTTP, JVM and connection-pool measurements available through Actuator.
+- `OpenApiConfiguration.authenticationContract` declares Bearer security on protected
+  operations and documents `401`/`403`; public auth operations have no access-JWT requirement.
+- Regression coverage includes stale/blocked JWTs, revoked sessions, blocked reset,
+  concurrent refresh consumption, WebSocket routing/principal, metrics authorization,
+  log redaction and generated OpenAPI security.
+
+See `BUSINESS-RULES.md` for the authorization matrix and consolidated business rules,
+and `RELEASE-CHECKLIST.md` for deployment gates and current external integration limits.

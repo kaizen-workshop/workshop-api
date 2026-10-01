@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  mail:
+    host: ${SMTP_HOST}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+logging:
+  structured:
+    format:
+      console: ecs
+management:
+  endpoint:
+    health:
+      show-details: never
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
