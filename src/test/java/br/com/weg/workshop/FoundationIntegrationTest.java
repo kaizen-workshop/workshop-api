@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import br.com.weg.workshop.shared.error.ConflictException;
 import br.com.weg.workshop.user.service.UserAdministrationService;
+import br.com.weg.workshop.user.repository.UserRepository;
 import br.com.weg.workshop.auth.service.AuthenticationService;
 import br.com.weg.workshop.user.service.ProfileService;
 import br.com.weg.workshop.preference.service.CategoryService;
@@ -59,6 +60,23 @@ import org.springframework.web.bind.annotation.RestController;
 @Import(FoundationIntegrationTest.FoundationTestController.class)
 class FoundationIntegrationTest {
 
+    @Test
+    void technicalMetricsRequireAdminAndRequestsHaveCorrelationId() throws Exception {
+        mockMvc.perform(get("/actuator/metrics")).andExpect(status().isUnauthorized())
+                .andExpect(header().exists("X-Request-Id"));
+        mockMvc.perform(get("/actuator/metrics").with(user("participant").roles("PARTICIPANT")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/actuator/metrics").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.names").isArray());
+    }
+
+    @Test
+    void openApiDefinesAuthenticationForProtectedOperations() throws Exception {
+        mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post.security").isEmpty())
+                .andExpect(jsonPath("$.paths['/api/v1/users/me'].get.security[0].bearerAuth").isArray());
+    }
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -70,6 +88,9 @@ class FoundationIntegrationTest {
 
     @MockBean
     private UserAdministrationService userAdministrationService;
+
+    @MockBean
+    private UserRepository userRepository;
 
     @MockBean
     private AuthenticationService authenticationService;

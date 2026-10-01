@@ -360,13 +360,20 @@ cover the new schema and retry behavior.
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Complete authentication hardening, authorization matrix, structured safe logs, technical
 metrics and health checks. Consolidate unit, PostgreSQL/Testcontainers, security,
 concurrency and API-contract tests. Complete OpenAPI, business-rule documentation and
 the first release checklist.
+
+Delivered: account/token-version checks, session revocation on password change/reset,
+single-use token locking with PostgreSQL concurrency coverage, safe correlated request
+logs and a production profile, ADMIN-protected technical metrics, OpenAPI authentication
+contracts, WebSocket routing hardening, an authorization matrix and release checklist.
+Validation: Maven clean verify passed with Docker/PostgreSQL; 99 tests, no failures,
+errors or skips. Deployment and external integrations retain explicit checklist gates.
 
 ## MVP
 
@@ -375,5 +382,5 @@ TASK-013 and TASK-014 can follow when the core participant and ARWEG workflow is
 
 ## Next delivery
 
-Start with TASK-002. It creates the account model and administrative provisioning needed
-by all protected product flows.
+All TASK-001 through TASK-016 are implemented. Follow RELEASE-CHECKLIST.md for
+staging, operational validation and release through reviewed pull requests.

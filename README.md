@@ -8,7 +8,7 @@ The project is a modular Spring Boot monolith designed primarily for a mobile cl
 Foundation, identity, profile/preferences, workshop catalogue, media, registrations,
 payments, participant history/calendar/evaluations, posts/feed, workshop groups/chat,
 persistent notifications, workshop administration, metrics and administrative audit
-and mobile synchronization are implemented. Release hardening remains pending.
+and mobile synchronization are implemented, including session hardening and release observability.
 
 The delivery plan is maintained in [TASKS.md](TASKS.md). It is organized as cohesive
 product flows instead of small technical fragments.
@@ -71,6 +71,7 @@ SMTP_HOST
 SMTP_PORT
 SMTP_USERNAME
 SMTP_PASSWORD
+JWT_SECRET
 ```
 
 Never commit real credentials. Flyway runs migrations from
@@ -115,3 +116,14 @@ Tests that require PostgreSQL use Testcontainers and run when Docker is availabl
 5. Open a pull request; direct pushes to `main` are not allowed.
 
 Business rules and implementation constraints are defined in [AGENTS.md](AGENTS.md).
+
+## Release readiness
+
+Use `SPRING_PROFILES_ACTIVE=prod` with external database, SMTP and JWT settings.
+The production profile emits ECS JSON logs and hides health/error details.
+`X-Request-Id` correlates requests. Technical metrics at `/actuator/metrics` require ADMIN.
+Password changes revoke existing sessions; clients must log in again.
+
+The authorization matrix is in [BUSINESS-RULES.md](BUSINESS-RULES.md).
+Follow [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) before deployment; production
+checks and real payment/push integrations remain operational gates.

@@ -24,9 +24,14 @@ public class JwtService {
         this.accessTokenMinutes = accessTokenMinutes;
     }
     public String createAccessToken(UUID userId, Role role, boolean mustChangePassword) {
+        return createAccessToken(userId, role, mustChangePassword, 0);
+    }
+
+    public String createAccessToken(UUID userId, Role role, boolean mustChangePassword, int tokenVersion) {
         Instant now = Instant.now();
         return Jwts.builder().subject(userId.toString()).claim("role", role.name())
-                .claim("mustChangePassword", mustChangePassword).issuedAt(Date.from(now))
+                .claim("mustChangePassword", mustChangePassword).claim("tokenVersion", tokenVersion)
+                .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(accessTokenMinutes, ChronoUnit.MINUTES))).signWith(key()).compact();
     }
     public Claims parse(String token) { return Jwts.parser().verifyWith(key()).build().parseSignedClaims(token).getPayload(); }
