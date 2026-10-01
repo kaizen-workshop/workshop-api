@@ -1,4 +1,5 @@
 package br.com.weg.workshop.post.service;
+import br.com.weg.workshop.audit.service.AuditService;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -20,7 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class PostServiceTest {
- @Mock PostRepository posts; @Mock PostLikeRepository likes; @Mock PostCommentRepository comments; @Mock UserRepository users; @Mock WorkshopRepository workshops; @Mock CategoryRepository categories; @InjectMocks PostService service;
+ @Mock PostRepository posts; @Mock PostLikeRepository likes; @Mock PostCommentRepository comments; @Mock UserRepository users; @Mock WorkshopRepository workshops; @Mock CategoryRepository categories; @Mock AuditService audit; @InjectMocks PostService service;
  @Test void createsDraftForAuthorizedAuthor(){UserEntity user=activeUser();when(users.findById(user.getId())).thenReturn(Optional.of(user));when(posts.save(any())).thenAnswer(i->i.getArgument(0));var response=service.create(user.getId(),new PostRequest("Title","Content",null,null,null,true));assertThat(response.status()).isEqualTo("DRAFT");assertThat(response.highlight()).isTrue();}
  @Test void refusesToArchiveDraft(){UserEntity user=activeUser();Post post=Post.create("Title","Content",null,null,null,false,user);when(posts.findById(post.getId())).thenReturn(Optional.of(post));assertThatThrownBy(()->service.archive(user.getId(),false,post.getId())).isInstanceOf(ConflictException.class);}
  private UserEntity activeUser(){UserEntity u=UserEntity.create("User",UUID.randomUUID().toString(),UUID.randomUUID()+"@example.com",null,null,null,"hash",Role.ARWEG);u.changePassword("hash");return u;}

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import br.com.weg.workshop.shared.error.ConflictException;
+import br.com.weg.workshop.audit.service.AuditService;
 import br.com.weg.workshop.user.domain.Role;
 import br.com.weg.workshop.user.domain.UserEntity;
 import br.com.weg.workshop.user.dto.CreateUserRequest;
@@ -19,15 +20,16 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 class UserAdministrationServiceTest {
     private final UserRepository users = mock(UserRepository.class);
     private final InitialAccessMailService mail = mock(InitialAccessMailService.class);
+    private final AuditService audit = mock(AuditService.class);
     private final UserAdministrationService service = new UserAdministrationService(users, new BCryptPasswordEncoder(),
-            new TemporaryPasswordGenerator(), mail);
+            new TemporaryPasswordGenerator(), mail, audit);
 
     @Test
     void createsPendingUserAndSendsInitialAccessEmail() {
         CreateUserRequest request = request();
         when(users.save(any(UserEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var response = service.create(request);
+        var response = service.create(java.util.UUID.randomUUID(), request);
 
         assertThat(response.username()).isEqualTo("ana.silva");
         assertThat(response.mustChangePassword()).isTrue();
@@ -40,7 +42,7 @@ class UserAdministrationServiceTest {
     void rejectsDuplicateUsernameBeforeSendingEmail() {
         when(users.existsByUsername("ana.silva")).thenReturn(true);
 
-        assertThatThrownBy(() -> service.create(request())).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> service.create(java.util.UUID.randomUUID(), request())).isInstanceOf(ConflictException.class);
 
         verify(users, never()).save(any());
         verify(mail, never()).send(any(), any(), any());

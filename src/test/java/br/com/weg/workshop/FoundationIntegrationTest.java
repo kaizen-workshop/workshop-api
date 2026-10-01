@@ -27,6 +27,8 @@ import br.com.weg.workshop.group.service.GroupLifecycleService;
 import br.com.weg.workshop.chat.service.ChatService;
 import br.com.weg.workshop.notification.service.NotificationService;
 import br.com.weg.workshop.administration.service.WorkshopAdministrationService;
+import br.com.weg.workshop.audit.service.AuditService;
+import br.com.weg.workshop.audit.service.MetricService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -55,6 +57,12 @@ class FoundationIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockBean
+    private AuditService auditService;
+
+    @MockBean
+    private MetricService metricService;
 
     @MockBean
     private UserAdministrationService userAdministrationService;
@@ -190,6 +198,16 @@ class FoundationIntegrationTest {
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
         mockMvc.perform(get("/api/v1/arweg/workshops/{id}/participants", java.util.UUID.randomUUID()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void metricsAndAuditRequireAdmin() throws Exception {
+        for (String path : new String[] {"/api/v1/admin/metrics/workshops", "/api/v1/admin/metrics/posts",
+                "/api/v1/admin/audit"}) {
+            mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+            mockMvc.perform(get(path).with(user("arweg").roles("ARWEG")))
+                    .andExpect(status().isForbidden());
+        }
     }
 
     @Test

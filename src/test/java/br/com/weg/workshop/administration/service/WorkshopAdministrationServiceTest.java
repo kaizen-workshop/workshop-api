@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import br.com.weg.workshop.administration.dto.*;
+import br.com.weg.workshop.audit.service.AuditService;
 import br.com.weg.workshop.preference.domain.*;
 import br.com.weg.workshop.registration.domain.*;
 import br.com.weg.workshop.registration.repository.RegistrationRepository;
@@ -30,6 +31,7 @@ class WorkshopAdministrationServiceTest {
     @Mock RegistrationRepository registrations;
     @Mock WorkshopRepository workshops;
     @Mock UserRepository users;
+    @Mock AuditService audit;
     @InjectMocks WorkshopAdministrationService service;
 
     @Test

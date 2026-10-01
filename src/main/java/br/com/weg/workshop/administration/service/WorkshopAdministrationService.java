@@ -1,4 +1,5 @@
 package br.com.weg.workshop.administration.service;
+import br.com.weg.workshop.audit.service.AuditService;
 
 import br.com.weg.workshop.administration.dto.*;
 import br.com.weg.workshop.registration.domain.*;
@@ -24,12 +25,14 @@ public class WorkshopAdministrationService {
     private final RegistrationRepository registrations;
     private final WorkshopRepository workshops;
     private final UserRepository users;
+    private final AuditService audit;
 
     public WorkshopAdministrationService(RegistrationRepository registrations, WorkshopRepository workshops,
-                                         UserRepository users) {
+                                         UserRepository users, AuditService audit) {
         this.registrations = registrations;
         this.workshops = workshops;
         this.users = users;
+        this.audit = audit;
     }
 
     @Transactional(readOnly = true)
@@ -66,7 +69,10 @@ public class WorkshopAdministrationService {
             if (!ATTENDANCE_ELIGIBLE.contains(registration.getStatus())) {
                 throw new ConflictException("Attendance requires a confirmed or refunded registration.");
             }
+            String previous = registration.getAttendanceStatus() == null ? null : registration.getAttendanceStatus().name();
             registration.markAttendance(update.status(), actor);
+            audit.record(managerId, "MARK_ATTENDANCE", "REGISTRATION", registration.getId(),
+                    previous, update.status().name());
             responses.add(ParticipantResponse.from(registration));
         }
         return responses;

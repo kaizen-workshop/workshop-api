@@ -301,7 +301,7 @@ CSV and Office Open XML XLSX exports, plus a scoped ARWEG dashboard.
 Status:
 
 ```text
-[ ]
+[x]
 ```
 
 Deliver workshop/post metrics and administrative audit history. Record relevant actor,
@@ -313,6 +313,11 @@ Audit contract:
 ```text
 userId, action, entity, entityId, previousValue, newValue, timestamp, ip
 ```
+
+Delivered: ADMIN-only paginated workshop/post metrics and filtered audit history;
+transactional audit for user provisioning, workshop/post management and attendance.
+`V15__create_administrative_audit.sql`, unit/security tests, PostgreSQL metric/audit
+integration tests and API documentation are included.
 
 ## Milestone 7 — Reliability and release
 
