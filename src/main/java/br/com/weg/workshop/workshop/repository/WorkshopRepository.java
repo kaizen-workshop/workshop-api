@@ -15,8 +15,8 @@ public interface WorkshopRepository extends JpaRepository<Workshop,UUID> {
  Page<WorkshopMetricResponse> findMetrics(@Param("status") WorkshopStatus status,
      @Param("createdFrom") Instant createdFrom, @Param("createdTo") Instant createdTo, Pageable pageable);
  @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select w from Workshop w where w.id = :id") Optional<Workshop> findByIdForUpdate(@Param("id") UUID id);
- @Query("select w from Workshop w where (w.status = 'PUBLISHED' or w.createdBy.id = :userId or :admin = true) and (:status is null or w.status = :status) and (:themeId is null or w.theme.id = :themeId) and (:categoryId is null or w.category.id = :categoryId)")
- Page<Workshop> findVisible(@Param("userId") UUID userId,@Param("admin") boolean admin,@Param("status") WorkshopStatus status,@Param("themeId") UUID themeId,@Param("categoryId") UUID categoryId, Pageable pageable);
+ @Query("select w from Workshop w where (w.status = 'PUBLISHED' or w.createdBy.id = :userId or :admin = true) and (:status is null or w.status = :status) and (:themeId is null or w.theme.id = :themeId) and (:categoryId is null or w.category.id = :categoryId) and (cast(:updatedAfter as timestamp) is null or w.updatedAt > :updatedAfter)")
+ Page<Workshop> findVisible(@Param("userId") UUID userId,@Param("admin") boolean admin,@Param("status") WorkshopStatus status,@Param("themeId") UUID themeId,@Param("categoryId") UUID categoryId,@Param("updatedAfter") Instant updatedAfter, Pageable pageable);
  List<Workshop> findByStatusAndScheduledPublishAtLessThanEqual(WorkshopStatus status, Instant instant);
  @Query("select count(w) from Workshop w where (:admin = true or w.createdBy.id = :managerId) and (:status is null or w.status = :status)")
  long countManaged(@Param("managerId") UUID managerId,@Param("admin") boolean admin,@Param("status") WorkshopStatus status);

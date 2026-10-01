@@ -40,12 +40,14 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse create(UUID userId, UUID registrationId, UUID idempotencyKey) {
-        Registration registration = ownedRegistration(userId, registrationId);
+        if (idempotencyKey == null) throw new IllegalArgumentException("Idempotency-Key is required.");
+        Registration registration = registrations.findByIdForUpdate(registrationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Registration not found."));
+        if (!registration.getUser().getId().equals(userId)) {
+            throw new ResourceNotFoundException("Registration not found.");
+        }
         if (registration.getWorkshop().getPaymentMethod() == PaymentMethod.FREE) {
             throw new ConflictException("Free workshop registrations do not require payment.");
-        }
-        if (registration.getStatus() != RegistrationStatus.PENDING) {
-            throw new ConflictException("Only pending registrations can start payment.");
         }
         var byIdempotencyKey = payments.findByIdempotencyKey(idempotencyKey);
         if (byIdempotencyKey.isPresent()) {
@@ -55,17 +57,24 @@ public class PaymentService {
             }
             return PaymentResponse.from(existing);
         }
-        return payments.findByRegistrationId(registrationId).map(existing -> {
+        var existingPayment = payments.findByRegistrationId(registrationId);
+        if (existingPayment.isPresent()) {
+            Payment existing = existingPayment.get();
             if (!existing.getIdempotencyKey().equals(idempotencyKey)) {
                 throw new ConflictException("A payment already exists for this registration.");
             }
             return PaymentResponse.from(existing);
-        }).orElseGet(() -> createPayment(registration, idempotencyKey));
+        }
+        if (registration.getStatus() != RegistrationStatus.PENDING) {
+            throw new ConflictException("Only pending registrations can start payment.");
+        }
+        return createPayment(registration, idempotencyKey);
     }
 
     @Transactional
     public PaymentResponse simulatePaid(UUID paymentId) {
         Payment payment = payment(paymentId);
+        if (payment.getStatus() == PaymentStatus.PAID) return PaymentResponse.from(payment);
         if (payment.getRegistration().getStatus() != RegistrationStatus.PENDING) {
             throw new ConflictException("Only pending registrations can be paid.");
         }
@@ -83,6 +92,7 @@ public class PaymentService {
     @Transactional
     public PaymentResponse simulateDeclined(UUID paymentId) {
         Payment payment = payment(paymentId);
+        if (payment.getStatus() == PaymentStatus.DECLINED) return PaymentResponse.from(payment);
         PaymentStatus previous = payment.getStatus();
         payment.markDeclined();
         Registration registration = registrationService.cancelAfterPaymentFailure(payment.getRegistration().getId());
@@ -97,7 +107,15 @@ public class PaymentService {
 
     @Transactional
     public RegistrationResponse cancelRegistration(UUID userId, UUID registrationId) {
-        Registration registration = registrationService.cancelForPayment(userId, registrationId);
+        return cancelRegistration(userId, registrationId, UUID.randomUUID());
+    }
+
+    @Transactional
+    public RegistrationResponse cancelRegistration(UUID userId, UUID registrationId, UUID idempotencyKey) {
+        RegistrationService.CancellationResult result = registrationService.cancelForPayment(userId, registrationId,
+                idempotencyKey);
+        Registration registration = result.registration();
+        if (result.replayed()) return RegistrationResponse.from(registration);
         payments.findByRegistrationId(registrationId).ifPresent(payment -> settleCancellation(payment, registration));
         return RegistrationResponse.from(registration);
     }
@@ -139,10 +157,4 @@ public class PaymentService {
         return payments.findByIdForUpdate(paymentId).orElseThrow(() -> new ResourceNotFoundException("Payment not found."));
     }
 
-    private Registration ownedRegistration(UUID userId, UUID registrationId) {
-        Registration registration = registrations.findById(registrationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Registration not found."));
-        if (!registration.getUser().getId().equals(userId)) throw new ResourceNotFoundException("Registration not found.");
-        return registration;
-    }
 }

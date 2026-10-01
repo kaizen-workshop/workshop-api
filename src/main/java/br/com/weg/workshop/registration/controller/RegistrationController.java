@@ -35,8 +35,10 @@ public class RegistrationController {
 
     @PatchMapping("/api/v1/registrations/{registrationId}/cancel")
     @Operation(summary = "Cancel the authenticated user's registration")
-    public RegistrationResponse cancel(@PathVariable UUID registrationId, Authentication authentication) {
-        return payments.cancelRegistration(userId(authentication), registrationId);
+    public RegistrationResponse cancel(@PathVariable UUID registrationId,
+                                       @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+                                       Authentication authentication) {
+        return payments.cancelRegistration(userId(authentication), registrationId, idempotencyKey);
     }
 
     @GetMapping("/api/v1/workshops/{workshopId}/registrations/me")

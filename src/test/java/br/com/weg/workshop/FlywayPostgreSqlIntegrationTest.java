@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.weg.workshop.audit.service.AuditService;
 import br.com.weg.workshop.audit.service.MetricService;
+import br.com.weg.workshop.notification.domain.NotificationType;
+import br.com.weg.workshop.notification.service.NotificationService;
 import br.com.weg.workshop.post.domain.Post;
 import br.com.weg.workshop.post.domain.PostComment;
 import br.com.weg.workshop.post.domain.PostLike;
@@ -11,6 +13,7 @@ import br.com.weg.workshop.post.domain.PostStatus;
 import br.com.weg.workshop.post.repository.PostCommentRepository;
 import br.com.weg.workshop.post.repository.PostLikeRepository;
 import br.com.weg.workshop.post.repository.PostRepository;
+import br.com.weg.workshop.post.service.PostService;
 import br.com.weg.workshop.preference.domain.Category;
 import br.com.weg.workshop.preference.domain.Theme;
 import br.com.weg.workshop.preference.repository.CategoryRepository;
@@ -29,11 +32,13 @@ import br.com.weg.workshop.workshop.domain.WorkshopData;
 import br.com.weg.workshop.workshop.domain.WorkshopModality;
 import br.com.weg.workshop.workshop.domain.WorkshopStatus;
 import br.com.weg.workshop.workshop.repository.WorkshopRepository;
+import br.com.weg.workshop.workshop.service.WorkshopService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -67,6 +72,9 @@ class FlywayPostgreSqlIntegrationTest {
     @Autowired private PostRepository posts;
     @Autowired private PostLikeRepository likes;
     @Autowired private PostCommentRepository comments;
+    @Autowired private WorkshopService workshopService;
+    @Autowired private PostService postService;
+    @Autowired private NotificationService notificationService;
 
     @Test
     void flywayAppliesWorkshopMigration() {
@@ -86,6 +94,15 @@ class FlywayPostgreSqlIntegrationTest {
                         + "and table_name = 'registration' and column_name = 'idempotency_key' and is_nullable = 'NO'",
                 Integer.class);
         assertThat(idempotencyColumns).isEqualTo(1);
+        Integer mobileMigration = jdbcTemplate.queryForObject(
+                "select count(*) from workshop.flyway_schema_history where version = '16' and success = true",
+                Integer.class);
+        assertThat(mobileMigration).isEqualTo(1);
+        Integer notificationUpdateColumn = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.columns where table_schema = 'workshop' "
+                        + "and table_name = 'notification' and column_name = 'updated_at' and is_nullable = 'NO'",
+                Integer.class);
+        assertThat(notificationUpdateColumn).isEqualTo(1);
     }
 
     @Test
@@ -132,6 +149,19 @@ class FlywayPostgreSqlIntegrationTest {
                     assertThat(result.likes()).isEqualTo(1);
                     assertThat(result.comments()).isEqualTo(1);
                 });
+        assertThat(workshopService.list(user.getId(), false, null, null, null,
+                Instant.now().minusSeconds(60), page).getContent())
+                .extracting(result -> result.id()).contains(workshop.getId());
+        assertThat(workshopService.list(user.getId(), false, null, null, null,
+                Instant.now().plusSeconds(60), page).getContent()).isEmpty();
+        assertThat(postService.feed(user.getId(), Instant.now().minusSeconds(60), page).getContent())
+                .extracting(result -> result.id()).contains(post.getId());
+        assertThat(postService.feed(user.getId(), Instant.now().plusSeconds(60), page).getContent()).isEmpty();
+        notificationService.notify(user.getId(), NotificationType.MANUAL, "Sync", "Updated", Map.of());
+        assertThat(notificationService.list(user.getId(), Instant.now().minusSeconds(60), page).getContent())
+                .singleElement().satisfies(result -> assertThat(result.updatedAt()).isNotNull());
+        assertThat(notificationService.list(user.getId(), Instant.now().plusSeconds(60), page).getContent())
+                .isEmpty();
 
         UUID entityId = UUID.randomUUID();
         audit.record(null, "PUBLISH", "WORKSHOP", entityId, "SCHEDULED", "PUBLISHED");

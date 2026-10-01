@@ -60,7 +60,9 @@ class NotificationServiceTest {
         assertThatThrownBy(() -> service.markRead(UUID.randomUUID(), notification.getId()))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        assertThat(service.markRead(owner.getId(), notification.getId()).read()).isTrue();
+        var response = service.markRead(owner.getId(), notification.getId());
+        assertThat(response.read()).isTrue();
+        assertThat(response.updatedAt()).isAfterOrEqualTo(response.createdAt());
     }
 
     @Test

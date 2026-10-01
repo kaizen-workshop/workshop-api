@@ -18,6 +18,7 @@ public class Notification {
     @Column(nullable = false) private Instant scheduledAt;
     private Instant deliveredAt;
     @Column(nullable = false, updatable = false) private Instant createdAt;
+    @Column(nullable = false) private Instant updatedAt;
 
     protected Notification() { }
 
@@ -32,11 +33,12 @@ public class Notification {
         notification.dataJson = dataJson;
         notification.scheduledAt = scheduledAt;
         notification.createdAt = Instant.now();
+        notification.updatedAt = notification.createdAt;
         return notification;
     }
 
-    public void markRead() { if (readAt == null) readAt = Instant.now(); }
-    public void markDelivered() { if (deliveredAt == null) deliveredAt = Instant.now(); }
+    public void markRead() { if (readAt == null) { readAt = Instant.now(); updatedAt = readAt; } }
+    public void markDelivered() { if (deliveredAt == null) { deliveredAt = Instant.now(); updatedAt = deliveredAt; } }
     public UUID getId() { return id; }
     public UserEntity getUser() { return user; }
     public NotificationType getType() { return type; }
@@ -47,4 +49,5 @@ public class Notification {
     public Instant getScheduledAt() { return scheduledAt; }
     public Instant getDeliveredAt() { return deliveredAt; }
     public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
 }

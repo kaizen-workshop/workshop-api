@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
 import org.springframework.data.domain.*;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.*;
@@ -20,9 +21,10 @@ public class NotificationController {
     public NotificationController(NotificationService notifications) { this.notifications = notifications; }
 
     @GetMapping("/notifications") @Operation(summary = "List the caller's notifications")
-    public Page<NotificationResponse> list(@PageableDefault(size = 20, sort = "createdAt",
+    public Page<NotificationResponse> list(@RequestParam(required = false) Instant updatedAfter,
+            @PageableDefault(size = 20, sort = "updatedAt",
             direction = Sort.Direction.DESC) Pageable pageable, Authentication authentication) {
-        return notifications.list(userId(authentication), pageable);
+        return notifications.list(userId(authentication), updatedAfter, pageable);
     }
     @PatchMapping("/notifications/{id}/read") @Operation(summary = "Mark an owned notification as read")
     public NotificationResponse read(@PathVariable UUID id, Authentication authentication) {

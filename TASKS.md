@@ -326,7 +326,7 @@ integration tests and API documentation are included.
 Status:
 
 ```text
-[~]
+[x]
 ```
 
 Add `createdAt`/`updatedAt`, incremental synchronization where needed, appropriate HTTP
@@ -348,8 +348,12 @@ Delivered so far:
 - migrations, OpenAPI documentation, security boundaries and automated tests cover these
   increments.
 
-Remaining: cancellation, payment/refund idempotency, HTTP caching and broader incremental
-synchronization.
+Delivered: cancellation/refund idempotency with a persisted per-user key and concurrent
+retry coverage; serialized payment creation and idempotent simulated callbacks; private
+ETag revalidation on workshop details; `createdAt`/`updatedAt` on synchronizable workshop,
+registration, post and notification responses; exclusive `updatedAfter` filters on visible
+workshops, published posts and owned notifications. Migration V16 and PostgreSQL tests
+cover the new schema and retry behavior.
 
 ### TASK-016 — Hardening, observability and release readiness
 

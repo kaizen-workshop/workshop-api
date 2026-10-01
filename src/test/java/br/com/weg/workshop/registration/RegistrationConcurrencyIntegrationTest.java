@@ -8,6 +8,10 @@ import br.com.weg.workshop.preference.repository.*;
 import br.com.weg.workshop.registration.dto.RegistrationResponse;
 import br.com.weg.workshop.registration.repository.RegistrationRepository;
 import br.com.weg.workshop.registration.service.RegistrationService;
+import br.com.weg.workshop.payment.service.PaymentService;
+import br.com.weg.workshop.payment.dto.PaymentResponse;
+import br.com.weg.workshop.payment.repository.PaymentRepository;
+import br.com.weg.workshop.payment.repository.PaymentEventRepository;
 import br.com.weg.workshop.user.domain.*;
 import br.com.weg.workshop.user.repository.UserRepository;
 import br.com.weg.workshop.workshop.domain.*;
@@ -30,6 +34,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class RegistrationConcurrencyIntegrationTest {
 
     @Autowired RegistrationService service;
+    @Autowired PaymentService payments;
+    @Autowired PaymentRepository paymentRepository;
+    @Autowired PaymentEventRepository paymentEvents;
     @Autowired RegistrationRepository registrations;
     @Autowired WorkshopRepository workshops;
     @Autowired UserRepository users;
@@ -65,6 +72,86 @@ class RegistrationConcurrencyIntegrationTest {
             assertThat(registrations.countByWorkshopIdAndStatusIn(workshop.getId(),
                     Set.of(br.com.weg.workshop.registration.domain.RegistrationStatus.CONFIRMED,
                             br.com.weg.workshop.registration.domain.RegistrationStatus.PENDING))).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void concurrentCancellationRetryPromotesWaitingUserOnce() throws Exception {
+        UserEntity creator = saveActiveUser();
+        UserEntity owner = saveActiveUser();
+        UserEntity waitingUser = saveActiveUser();
+        Theme theme = themes.save(Theme.create("Theme " + UUID.randomUUID(), null));
+        Category category = categories.save(Category.create("Category " + UUID.randomUUID(), null));
+        Workshop workshop = Workshop.create(new WorkshopData("Retry workshop", "Description", null,
+                LocalDate.now().plusDays(2), LocalDate.now().plusDays(2), LocalTime.of(9, 0), LocalTime.of(10, 0),
+                "Room", WorkshopModality.IN_PERSON, BigDecimal.ZERO, Instant.now().minusSeconds(60),
+                Instant.now().plusSeconds(3600), 1, PaymentMethod.FREE, false, null), theme, category, creator);
+        workshop.publish();
+        workshops.saveAndFlush(workshop);
+        RegistrationResponse occupied = service.register(owner.getId(), workshop.getId(), UUID.randomUUID());
+        RegistrationResponse waiting = service.register(waitingUser.getId(), workshop.getId(), UUID.randomUUID());
+        assertThat(waiting.status()).isEqualTo("WAITING_LIST");
+
+        UUID key = UUID.randomUUID();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Callable<RegistrationResponse> cancel = () -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Cancellation did not start.");
+                return payments.cancelRegistration(owner.getId(), occupied.id(), key);
+            };
+            Future<RegistrationResponse> first = executor.submit(cancel);
+            Future<RegistrationResponse> second = executor.submit(cancel);
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(first.get(10, TimeUnit.SECONDS).status()).isEqualTo("CANCELLED");
+            assertThat(second.get(10, TimeUnit.SECONDS).status()).isEqualTo("CANCELLED");
+            assertThat(registrations.findById(waiting.id()).orElseThrow().getStatus())
+                    .isEqualTo(br.com.weg.workshop.registration.domain.RegistrationStatus.CONFIRMED);
+            assertThat(registrations.findById(occupied.id()).orElseThrow().getCancellationIdempotencyKey())
+                    .isEqualTo(key);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void concurrentPaymentRetryCreatesOnePaymentAndOneEvent() throws Exception {
+        UserEntity creator = saveActiveUser();
+        UserEntity buyer = saveActiveUser();
+        Theme theme = themes.save(Theme.create("Theme " + UUID.randomUUID(), null));
+        Category category = categories.save(Category.create("Category " + UUID.randomUUID(), null));
+        Workshop workshop = Workshop.create(new WorkshopData("Paid retry workshop", "Description", null,
+                LocalDate.now().plusDays(2), LocalDate.now().plusDays(2), LocalTime.of(9, 0), LocalTime.of(10, 0),
+                "Room", WorkshopModality.IN_PERSON, BigDecimal.TEN, Instant.now().minusSeconds(60),
+                Instant.now().plusSeconds(3600), 1, PaymentMethod.PIX, false, null), theme, category, creator);
+        workshop.publish();
+        workshops.saveAndFlush(workshop);
+        RegistrationResponse registration = service.register(buyer.getId(), workshop.getId(), UUID.randomUUID());
+        assertThat(registration.status()).isEqualTo("PENDING");
+        UUID key = UUID.randomUUID();
+        long eventsBefore = paymentEvents.count();
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Callable<PaymentResponse> pay = () -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Payment did not start.");
+                return payments.create(buyer.getId(), registration.id(), key);
+            };
+            Future<PaymentResponse> first = executor.submit(pay);
+            Future<PaymentResponse> second = executor.submit(pay);
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(first.get(10, TimeUnit.SECONDS).id()).isEqualTo(second.get(10, TimeUnit.SECONDS).id());
+            assertThat(paymentRepository.findByRegistrationId(registration.id())).isPresent();
+            assertThat(paymentEvents.count() - eventsBefore).isEqualTo(1);
         } finally {
             executor.shutdownNow();
         }
