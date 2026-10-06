@@ -8,3 +8,12 @@ spring:
     port: ${SMTP_PORT:1025}
     username: ${SMTP_USERNAME:}
     password: ${SMTP_PASSWORD:}
+
+server:
+  port: ${SERVER_PORT:8082}
+
+app:
+  security:
+    jwt:
+      # Development-only default. Production still requires JWT_SECRET.
+      secret: ${JWT_SECRET:workshop-local-development-jwt-secret-2026}

@@ -54,9 +54,15 @@ docker compose up -d
 
 Useful URLs after startup:
 
-- Health: `http://localhost:8080/actuator/health`
-- Swagger UI: `http://localhost:8080/swagger-ui.html`
-- OpenAPI JSON: `http://localhost:8080/v3/api-docs`
+- Health: `http://localhost:8082/actuator/health`
+- Swagger UI: `http://localhost:8082/swagger-ui.html`
+- OpenAPI JSON: `http://localhost:8082/v3/api-docs`
+
+The development profile uses port `8082` by default to avoid collisions with
+other local Tomcat installations. Set `SERVER_PORT` to override it.
+It also provides a non-production JWT signing key so local demo accounts work
+without extra setup. Set `JWT_SECRET` to override it; production always requires
+an externally supplied secret.
 
 ## Configuration
 
