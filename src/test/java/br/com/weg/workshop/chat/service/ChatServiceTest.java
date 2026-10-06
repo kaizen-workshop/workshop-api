@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 import br.com.weg.workshop.chat.domain.Message;
@@ -91,6 +92,24 @@ class ChatServiceTest {
                 group.getId(),
                 new MessageRequest("Hello")
         )).isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void replaysAMessageWithTheSameIdempotencyKeyWithoutPublishingAgain() {
+        group.activate();
+        UUID key = UUID.randomUUID();
+        Message existing = Message.create(group, participant, "Hello", key);
+        when(groups.requireAccess(participant.getId(), false, group.getId())).thenReturn(group);
+        when(users.findByIdForUpdate(participant.getId())).thenReturn(Optional.of(participant));
+        when(messages.findByAuthorIdAndClientOperationId(participant.getId(), key))
+                .thenReturn(Optional.of(existing));
+
+        var response = service.send(participant.getId(), false, group.getId(), key,
+                new MessageRequest("Hello"));
+
+        assertThat(response.id()).isEqualTo(existing.getId());
+        verify(messages, never()).save(any(Message.class));
+        verify(messaging, never()).convertAndSend(any(String.class), any(Object.class));
     }
 
     @Test

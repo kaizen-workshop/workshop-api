@@ -8,6 +8,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -17,9 +18,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.servlet.HandlerMapping;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private final ApiErrorFactory apiErrorFactory;
 
@@ -65,8 +71,19 @@ public class GlobalExceptionHandler {
         return response(request, HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN, "Access is denied.", List.of());
     }
 
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiErrorResponse> handleBadCredentials(
+            HttpServletRequest request,
+            BadCredentialsException exception
+    ) {
+        return response(request, HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED,
+                "Invalid credentials.", List.of());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(HttpServletRequest request, Exception exception) {
+        Object pattern = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        LOG.error("Unhandled request failure endpoint={}", pattern == null ? "unmapped" : pattern, exception);
         return response(request, HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR,
                 "An unexpected error occurred.", List.of());
     }

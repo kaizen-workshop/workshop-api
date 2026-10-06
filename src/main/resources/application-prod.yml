@@ -25,6 +25,12 @@ server:
     include-stacktrace: never
     include-binding-errors: never
 app:
+  notifications:
+    push:
+      provider: ${PUSH_PROVIDER:none}
+      expo:
+        endpoint: ${EXPO_PUSH_ENDPOINT:https://exp.host/--/api/v2/push/send}
+        access-token: ${EXPO_ACCESS_TOKEN:}
   security:
     jwt:
       secret: ${JWT_SECRET}

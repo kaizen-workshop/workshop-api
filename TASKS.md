@@ -380,7 +380,24 @@ errors or skips. Deployment and external integrations retain explicit checklist 
 The first functional release requires TASK-001 through TASK-012, TASK-015 and TASK-016.
 TASK-013 and TASK-014 can follow when the core participant and ARWEG workflow is stable.
 
+## Milestone 8 — Mobile contract completion
+
+### TASK-017 — Mobile contract remediation
+
+Status:
+
+```text
+[x]
+```
+
+Correct invalid credential handling to return the stable `401 UNAUTHORIZED` envelope.
+Complete comment editing/deletion, participant history lifecycle filters and explicit
+group moderation capabilities. Add backward-compatible UUID idempotency for comment,
+REST message and evaluation creation, plus a configurable Expo push adapter and browser
+CORS allow-list. Migration V18, authorization checks, unit/integration coverage and API
+documentation are included.
+
 ## Next delivery
 
-All TASK-001 through TASK-016 are implemented. Follow RELEASE-CHECKLIST.md for
+All TASK-001 through TASK-017 are implemented. Follow RELEASE-CHECKLIST.md for
 staging, operational validation and release through reviewed pull requests.

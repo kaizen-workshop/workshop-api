@@ -58,6 +58,12 @@ published post and owned notification lists support exclusive `updatedAfter`; ti
 and pagination allow reconciliation. Clients deduplicate by UUID and periodically refresh
 the full visible collection to detect removal/archive.
 
+Comment, REST message and evaluation creation accept optional per-user UUID idempotency
+keys. Reusing a key for the same resource returns the original result; reuse for another
+resource returns a conflict. History supports future, in-progress, completed, cancelled
+(including refunded cancellations) and waiting-list views without changing the default
+completed view.
+
 Feed publication is restricted to ARWEG/ADMIN with ownership checks. Messages require
 group access and are paginated by cursor. STOMP CONNECT validates the stored account
 and JWT version; SEND/SUBSCRIBE recheck the current account and token version. Client

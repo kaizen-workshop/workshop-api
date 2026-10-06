@@ -12,6 +12,8 @@ import java.util.*;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
@@ -43,7 +45,7 @@ public class WorkshopMediaService {
         attachments.save(attachment);
         workshop.replaceImage(attachment.getStorageKey());
         if (previous != null) {
-            deleteQuietly(previous.getStorageKey());
+            deleteAfterCommit(previous.getStorageKey());
         }
         return WorkshopFileResponse.from(attachment);
     }
@@ -79,9 +81,9 @@ public class WorkshopMediaService {
         Workshop workshop = workshops.manageableForMedia(userId, admin, workshopId);
         WorkshopAttachment attachment = attachments.findByWorkshopIdAndType(workshopId, WorkshopFileType.IMAGE)
                 .orElseThrow(() -> new ResourceNotFoundException("Workshop image not found."));
-        deleteStored(attachment);
         attachments.delete(attachment);
         workshop.removeImage();
+        deleteAfterCommit(attachment.getStorageKey());
     }
 
     @Transactional
@@ -89,8 +91,8 @@ public class WorkshopMediaService {
         workshops.manageableForMedia(userId, admin, workshopId);
         WorkshopAttachment attachment = attachments.findByIdAndWorkshopIdAndType(attachmentId, workshopId, WorkshopFileType.ATTACHMENT)
                 .orElseThrow(() -> new ResourceNotFoundException("Workshop attachment not found."));
-        deleteStored(attachment);
         attachments.delete(attachment);
+        deleteAfterCommit(attachment.getStorageKey());
     }
 
     private WorkshopAttachment store(Workshop workshop, WorkshopFileType type, ValidatedUpload upload) {
@@ -100,6 +102,7 @@ public class WorkshopMediaService {
         } catch (IOException exception) {
             throw new FileStorageException();
         }
+        deleteOnRollback(storageKey);
         return WorkshopAttachment.create(workshop, type, upload.filename(), upload.contentType(), upload.extension(),
                 upload.content().length, upload.checksumSha256(), storageKey);
     }
@@ -118,12 +121,24 @@ public class WorkshopMediaService {
         }
     }
 
-    private void deleteStored(WorkshopAttachment attachment) {
-        try {
-            storage.delete(attachment.getStorageKey());
-        } catch (IOException exception) {
-            throw new FileStorageException();
+    private void deleteAfterCommit(String storageKey) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            deleteQuietly(storageKey);
+            return;
         }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { deleteQuietly(storageKey); }
+        });
+    }
+
+    private void deleteOnRollback(String storageKey) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != TransactionSynchronization.STATUS_COMMITTED) deleteQuietly(storageKey);
+            }
+        });
     }
 
     private void deleteQuietly(String storageKey) {

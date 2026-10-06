@@ -73,8 +73,9 @@ class GroupServiceTest {
         UUID ownerId = group.getWorkshop().getCreatedBy().getId();
         when(groups.findById(group.getId())).thenReturn(Optional.of(group));
 
-        assertThat(service.isModerator(ownerId, false, service.requireAccess(ownerId, false, group.getId())))
-                .isTrue();
+        var response = service.get(ownerId, false, group.getId());
+        assertThat(response.canModerate()).isTrue();
+        assertThat(response.canSendMessages()).isFalse();
     }
 
     private WorkshopGroup group() {

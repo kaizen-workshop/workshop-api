@@ -17,9 +17,12 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class NotificationService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(NotificationService.class);
     private static final TypeReference<Map<String, String>> DATA_TYPE = new TypeReference<>() { };
     private final NotificationRepository notifications;
     private final NotificationDeviceRepository devices;
@@ -93,14 +96,33 @@ public class NotificationService {
     }
 
     private void scheduleDelivery(Notification notification) {
-        notification.markDelivered();
-        Runnable delivery = () -> devices.findByUserIdAndActiveTrue(notification.getUser().getId()).forEach(device ->
-                push.send(device.getToken(), notification.getTitle(), notification.getMessage(), data(notification)));
+        Runnable delivery = () -> {
+            try {
+                boolean delivered = devices.findByUserIdAndActiveTrue(notification.getUser().getId()).stream()
+                        .map(device -> deliverPush(notification, device))
+                        .reduce(true, (left, right) -> left && right);
+                if (delivered) notifications.markDelivered(notification.getId(), Instant.now());
+            } catch (RuntimeException exception) {
+                LOGGER.warn("Push delivery scheduling failed for notificationId={}, error={}",
+                        notification.getId(), exception.getClass().getSimpleName());
+            }
+        };
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override public void afterCommit() { delivery.run(); }
             });
         } else delivery.run();
+    }
+
+    private boolean deliverPush(Notification notification, NotificationDevice device) {
+        try {
+            push.send(device.getToken(), notification.getTitle(), notification.getMessage(), data(notification));
+            return true;
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Push delivery failed for notificationId={}, deviceId={}, providerError={}",
+                    notification.getId(), device.getId(), exception.getClass().getSimpleName());
+            return false;
+        }
     }
 
     private Notification owned(UUID userId, UUID notificationId) {

@@ -1,5 +1,6 @@
 package br.com.weg.workshop.evaluation.service;
 
+import br.com.weg.workshop.evaluation.domain.ParticipantWorkshopFilter;
 import br.com.weg.workshop.registration.domain.RegistrationStatus;
 import br.com.weg.workshop.registration.repository.RegistrationRepository;
 import br.com.weg.workshop.workshop.dto.WorkshopResponse;
@@ -16,7 +17,21 @@ public class ParticipantWorkshopService {
     public ParticipantWorkshopService(RegistrationRepository registrations) { this.registrations = registrations; }
     @Transactional(readOnly = true)
     public Page<WorkshopResponse> history(UUID userId, Pageable pageable) {
-        return registrations.findCompletedByUser(userId, EnumSet.of(RegistrationStatus.CONFIRMED, RegistrationStatus.REFUNDED), LocalDate.now(), pageable)
+        return history(userId, ParticipantWorkshopFilter.COMPLETED, pageable);
+    }
+    @Transactional(readOnly = true)
+    public Page<WorkshopResponse> history(UUID userId, ParticipantWorkshopFilter filter, Pageable pageable) {
+        LocalDate today = LocalDate.now();
+        Page<br.com.weg.workshop.registration.domain.Registration> result = switch (filter) {
+            case FUTURE -> registrations.findFutureByUser(userId,
+                    EnumSet.of(RegistrationStatus.PENDING, RegistrationStatus.CONFIRMED), today, pageable);
+            case IN_PROGRESS -> registrations.findInProgressByUser(userId, today, pageable);
+            case COMPLETED -> registrations.findCompletedByUser(userId,
+                    EnumSet.of(RegistrationStatus.CONFIRMED, RegistrationStatus.REFUNDED), today, pageable);
+            case CANCELLED -> registrations.findCancelledByUser(userId, pageable);
+            case WAITING_LIST -> registrations.findByUserIdAndStatus(userId, RegistrationStatus.WAITING_LIST, pageable);
+        };
+        return result
                 .map(registration -> WorkshopResponse.from(registration.getWorkshop()));
     }
     @Transactional(readOnly = true)

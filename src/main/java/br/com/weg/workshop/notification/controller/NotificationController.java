@@ -2,6 +2,7 @@ package br.com.weg.workshop.notification.controller;
 
 import br.com.weg.workshop.notification.dto.*;
 import br.com.weg.workshop.notification.service.NotificationService;
+import br.com.weg.workshop.shared.pagination.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -21,10 +22,10 @@ public class NotificationController {
     public NotificationController(NotificationService notifications) { this.notifications = notifications; }
 
     @GetMapping("/notifications") @Operation(summary = "List the caller's notifications")
-    public Page<NotificationResponse> list(@RequestParam(required = false) Instant updatedAfter,
+    public PageResponse<NotificationResponse> list(@RequestParam(required = false) Instant updatedAfter,
             @PageableDefault(size = 20, sort = "updatedAt",
             direction = Sort.Direction.DESC) Pageable pageable, Authentication authentication) {
-        return notifications.list(userId(authentication), updatedAfter, pageable);
+        return PageResponse.from(notifications.list(userId(authentication), updatedAfter, pageable));
     }
     @PatchMapping("/notifications/{id}/read") @Operation(summary = "Mark an owned notification as read")
     public NotificationResponse read(@PathVariable UUID id, Authentication authentication) {

@@ -2,9 +2,9 @@ package br.com.weg.workshop.group.controller;
 
 import br.com.weg.workshop.group.dto.GroupResponse;
 import br.com.weg.workshop.group.service.GroupService;
+import br.com.weg.workshop.shared.pagination.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import java.util.UUID;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.core.Authentication;
@@ -26,11 +26,12 @@ public class GroupController {
 
     @GetMapping
     @Operation(summary = "List groups accessible to the authenticated user")
-    public Page<GroupResponse> list(
+    public PageResponse<GroupResponse> list(
             @PageableDefault(size = 20, sort = "updatedAt") Pageable pageable,
             Authentication authentication
     ) {
-        return groups.list(userId(authentication), manager(authentication), admin(authentication), pageable);
+        return PageResponse.from(
+                groups.list(userId(authentication), manager(authentication), admin(authentication), pageable));
     }
 
     @GetMapping("/{groupId}")

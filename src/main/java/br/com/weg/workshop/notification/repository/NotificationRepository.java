@@ -7,6 +7,8 @@ import java.util.UUID;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
     @Query("select n from Notification n where n.user.id = :userId "
@@ -14,6 +16,13 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     Page<Notification> findForUser(@Param("userId") UUID userId,
                                     @Param("updatedAfter") Instant updatedAfter, Pageable pageable);
     List<Notification> findByDeliveredAtIsNullAndScheduledAtLessThanEqual(Instant now);
+
+    @Modifying
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Query("update Notification n set n.deliveredAt = :deliveredAt, n.updatedAt = :deliveredAt "
+            + "where n.id = :notificationId and n.deliveredAt is null")
+    int markDelivered(@Param("notificationId") UUID notificationId,
+                      @Param("deliveredAt") Instant deliveredAt);
 
     @Modifying
     @Query("update Notification n set n.readAt = :readAt, n.updatedAt = :readAt "

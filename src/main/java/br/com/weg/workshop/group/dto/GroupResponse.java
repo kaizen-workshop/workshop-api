@@ -9,15 +9,19 @@ public record GroupResponse(
         UUID workshopId,
         String workshopTitle,
         boolean active,
+        boolean canSendMessages,
+        boolean canModerate,
         Instant createdAt,
         Instant updatedAt
 ) {
-    public static GroupResponse from(WorkshopGroup group) {
+    public static GroupResponse from(WorkshopGroup group, boolean canModerate) {
         return new GroupResponse(
                 group.getId(),
                 group.getWorkshop().getId(),
                 group.getWorkshop().getTitle(),
                 group.isActive(),
+                group.isActive(),
+                canModerate,
                 group.getCreatedAt(),
                 group.getUpdatedAt()
         );

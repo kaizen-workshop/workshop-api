@@ -3,6 +3,7 @@ package br.com.weg.workshop.chat.repository;
 import br.com.weg.workshop.chat.domain.Message;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,6 +11,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface MessageRepository extends JpaRepository<Message, UUID> {
+
+    Optional<Message> findByAuthorIdAndClientOperationId(UUID authorId, UUID clientOperationId);
 
     @Query("""
             select m from Message m

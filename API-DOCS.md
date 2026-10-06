@@ -2,10 +2,14 @@
 
 ## Endpoints
 
+Paginated responses use the stable `PageResponse<T>` envelope with `content`,
+`number`, `size`, `totalElements`, `totalPages`, `first`, `last` and `empty`;
+internal Spring Data page implementations are never serialized directly.
+
 | Endpoint | Access | Description |
 | --- | --- | --- |
 | `POST /api/v1/admin/users` | `ADMIN` | Provisions a user and sends temporary credentials by e-mail. Returns `201` with `UserResponse`. |
-| `POST /api/v1/auth/login` | Public | Authenticates by username or e-mail. `LoginRequest` returns `TokenResponse` with a Bearer access JWT. |
+| `POST /api/v1/auth/login` | Public | Authenticates by username or e-mail. `LoginRequest` returns `TokenResponse` with a Bearer access JWT. Invalid credentials and unavailable accounts return the same standard `401 UNAUTHORIZED` response. |
 | `POST /api/v1/auth/change-password` | Authenticated | Validates `ChangePasswordRequest` and replaces the current password. Returns `204`. |
 | `GET /api/v1/users/me` | Authenticated | Returns the caller's profile and selected themes. |
 | `PATCH /api/v1/users/me` | Authenticated | Updates only `name`, `phone` and `profileImage` for the caller. |
@@ -37,20 +41,22 @@
 | `GET /api/v1/workshops/{id}/attachments` | Authenticated viewer | Lists attachment metadata in creation order. |
 | `GET /api/v1/workshops/{id}/attachments/{attachmentId}/content` | Authenticated viewer | Downloads an attachment. |
 | `DELETE /api/v1/workshops/{id}/attachments/{attachmentId}` | Creator or `ADMIN` | Deletes an attachment. Returns `204`. |
-| `GET /api/v1/users/me/workshops/history` | Authenticated | Lists the caller's completed confirmed/refunded workshop history, paginated. |
+| `GET /api/v1/users/me/workshops/history` | Authenticated | Lists the caller's workshop history, paginated. Optional `filter` accepts `FUTURE`, `IN_PROGRESS`, `COMPLETED` (default), `CANCELLED` (including refunded cancellations) or `WAITING_LIST`. |
 | `GET /api/v1/users/me/workshops/calendar` | Authenticated | Lists the caller's pending or confirmed workshops, paginated, with optional inclusive `from`/`to` start-date filters. |
-| `POST /api/v1/workshops/{id}/evaluations` | Authenticated eligible participant | Creates the caller's single evaluation for a completed workshop. Returns `201`. |
+| `POST /api/v1/workshops/{id}/evaluations` | Authenticated eligible participant | Creates the caller's single evaluation for a completed workshop. An optional UUID `Idempotency-Key` safely replays a lost response. Returns `201`. |
 | `GET /api/v1/workshops/{id}/evaluations` | Workshop creator or `ADMIN` | Lists a managed workshop's evaluations, paginated. |
 | `GET /api/v1/workshops/{id}/evaluations/summary` | Workshop creator or `ADMIN` | Returns count and average overall/content/instructor/organization ratings. |
 | `POST /api/v1/posts`, `PUT /api/v1/posts/{id}` | `ARWEG`, `ADMIN` | Creates or updates a draft post owned by the caller (or any post for ADMIN). |
 | `PATCH /api/v1/posts/{id}/schedule`, `/publish`, `/archive` | Post owner or `ADMIN` | Applies a valid publication lifecycle transition. |
 | `GET /api/v1/posts/feed` | Authenticated | Lists published posts, paginated by published time, with optional exclusive `updatedAfter` filter; highlights are returned as feed metadata. |
 | `PUT` / `DELETE /api/v1/posts/{id}/like` | Authenticated | Adds/removes the caller's idempotent like. |
-| `POST` / `GET /api/v1/posts/{id}/comments` | Authenticated | Creates or paginates comments on a published post. |
-| `GET /api/v1/groups` | Authenticated | Lists groups accessible through a confirmed paid/exempt registration. ARWEG sees managed workshop groups and ADMIN sees all groups. |
+| `POST` / `GET /api/v1/posts/{id}/comments` | Authenticated | Creates or paginates comments on a published post. Creation accepts an optional UUID `Idempotency-Key` for safe retry. |
+| `PATCH /api/v1/posts/{postId}/comments/{commentId}` | Comment author | Edits the caller's comment while the post is published. |
+| `DELETE /api/v1/posts/{postId}/comments/{commentId}` | Comment author, post owner or `ADMIN` | Deletes an allowed comment and returns `204`. |
+| `GET /api/v1/groups` | Authenticated | Lists groups accessible through a confirmed paid/exempt registration. ARWEG sees managed workshop groups and ADMIN sees all groups. Each item exposes `canSendMessages` and `canModerate`. |
 | `GET /api/v1/groups/{id}` | Member, workshop creator or `ADMIN` | Returns a group without bypassing its derived membership rules. |
 | `GET /api/v1/groups/{id}/messages` | Member, workshop creator or `ADMIN` | Returns up to `size` messages ordered newest-first. Accepts the previous `nextCursor` UUID and returns `MessagePageResponse`. |
-| `POST /api/v1/groups/{id}/messages` | Member, workshop creator or `ADMIN` | Persists a message in an active group and publishes it to `/topic/groups/{id}`. Returns `201`. |
+| `POST /api/v1/groups/{id}/messages` | Member, workshop creator or `ADMIN` | Persists a message in an active group and publishes it to `/topic/groups/{id}`. An optional UUID `Idempotency-Key` returns the original persisted message without publishing it twice. Returns `201`. |
 | `PATCH /api/v1/groups/{id}/messages/{messageId}` | Message author | Edits a non-deleted message while the group is active. |
 | `DELETE /api/v1/groups/{id}/messages/{messageId}` | Message author, workshop creator or `ADMIN` | Soft-deletes a message and publishes its tombstone representation. |
 | `STOMP /ws` | Authenticated | Accepts a Bearer JWT in the STOMP `CONNECT` `Authorization` header. Send to `/app/groups/{id}/messages`; authorized subscribers receive committed messages on `/topic/groups/{id}`. |
@@ -94,7 +100,7 @@ Bearer tokens use `Authorization: Bearer <access-token>`. `/api/v1/admin/**` req
 - `LoginRequest`, `TokenResponse`, `ChangePasswordRequest`: login input, token output and password-change input.
 - `V3__create_auth_tokens.sql`: creates storage reserved for refresh and password-reset tokens.
 
-Refresh-token rotation, logout and password recovery are implemented with opaque SHA-256-hashed tokens persisted in PostgreSQL. Password-reset requests always return `202` to avoid e-mail enumeration; reset tokens are single-use and expire after one hour. Authentication coverage includes token integrity/expiration, refresh rotation, blocked accounts and missing-token/role-boundary integration checks.
+Refresh-token rotation, logout and password recovery are implemented with opaque SHA-256-hashed tokens persisted in PostgreSQL. Password-reset requests always return `202` to avoid e-mail enumeration; reset tokens are single-use and expire after one hour. Invalid login, refresh, current-password and reset-token credentials use the standard `401 UNAUTHORIZED` envelope instead of falling through to an internal error. Authentication coverage includes token integrity/expiration, refresh rotation, blocked accounts and missing-token/role-boundary integration checks.
 
 ## Profile and preference module
 
@@ -119,7 +125,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `WorkshopAttachment`: stores only metadata for a workshop image or attachment: UUID, workshop, type, original filename, MIME type, extension, size, SHA-256 checksum, opaque storage key and creation time. The database enforces valid types, allowed formats, the 10 MB limit and one main image per workshop.
 - `FileStorage`: provider-neutral storage abstraction. `LocalFileStorage` is the current development implementation; its directory is configured by `FILE_STORAGE_LOCAL_DIRECTORY`, and no file contents are persisted in PostgreSQL.
 - `FileUploadValidator`: permits only JPEG (`image/jpeg`), PNG (`image/png`) and WebP (`image/webp`) files up to 10 MB. It rejects malformed names, incompatible extension/MIME pairs and incompatible binary signatures, and calculates a SHA-256 integrity checksum before storage.
-- `WorkshopMediaService` / `WorkshopMediaController`: manage uploads, replacement, listing, downloads and deletion. ARWEG owners and `ADMIN` may write; reads use the same workshop visibility rule as the catalogue. Invalid uploads return `422` with `INVALID_FILE`; unavailable or missing storage is not exposed with infrastructure details.
+- `WorkshopMediaService` / `WorkshopMediaController`: manage uploads, replacement, listing, downloads and deletion. ARWEG owners and `ADMIN` may write; reads use the same workshop visibility rule as the catalogue. Newly stored objects are removed if the database transaction rolls back, while replaced/deleted objects are removed only after commit, preventing records from pointing to files removed by a failed transaction. Invalid uploads return `422` with `INVALID_FILE`; unavailable or missing storage is not exposed with infrastructure details.
 - `WorkshopFileResponse`: returns attachment metadata without exposing its storage key or local filesystem location.
 - `V6__create_workshop_attachments.sql`: creates attachment metadata, size/format/checksum constraints, a unique main-image index and workshop lookup index.
 
@@ -143,7 +149,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 
 ## Evaluation module
 
-- `ParticipantWorkshopController` exposes the authenticated user's paginated completed-workshop history and calendar. The history includes confirmed or refunded registrations whose workshop end date has passed; the calendar includes pending or confirmed registrations and validates that `to` is not before `from`.
+- `ParticipantWorkshopController` exposes the authenticated user's paginated history and calendar. History accepts `FUTURE`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED` and `WAITING_LIST`; `COMPLETED` remains the default for backward compatibility. The calendar includes pending or confirmed registrations and validates that `to` is not before `from`.
 - `Evaluation`: one rating/comment record per user and workshop, with separate overall, content, instructor and organization ratings, immutable creation time and update time. `V9__create_evaluations.sql` enforces the one-evaluation constraint and 1–5 ratings.
 - `EvaluationService` only accepts an evaluation from a confirmed participant after the workshop's end date. Workshop creators and admins can view evaluation pages and aggregate summaries; other ARWEG users receive the normal concealed not-found result for unmanaged workshops.
 - `CreateEvaluationRequest`, `EvaluationResponse` and `EvaluationSummaryResponse` are DTO-only API contracts; the JPA entity is never exposed.
@@ -151,16 +157,16 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 ## Post and feed module
 
 - `Post` supports `DRAFT`, `SCHEDULED`, `PUBLISHED` and `ARCHIVED`; only owners or admins manage it. A scheduled worker publishes due posts every minute, configurable with `app.posts.publication-interval-ms`.
-- Published posts are the only posts readable through feed, likes and comments. `PostLike` has a composite database key to prevent duplicate likes; comments are separately paginated.
+- Published posts are the only posts readable through feed, likes and comments. `PostLike` has a composite database key to prevent duplicate likes; comments are separately paginated. Comment authors can edit their content; authors, post owners and admins can delete it. Optional creation idempotency serializes on the user and replays the original comment.
 - `PostService` keeps post ownership and transition checks in the service layer. The deterministic feed ranks highlighted posts, the caller's selected workshop themes, upcoming workshops with open registration, then recency; it returns highlight/like metadata without exposing drafts or scheduled content.
 - `V10__create_posts.sql` adds posts, likes and comments with lifecycle constraints and feed/comment indexes.
 
 ## Group and chat module
 
 - `WorkshopGroup`: exactly one group is linked to each workshop by a database unique constraint. Draft groups start inactive, publishing activates them, and closing/cancelling/archiving deactivates them. Migration `V11__create_workshop_groups_and_messages.sql` also backfills existing workshops consistently with their current status.
-- `GroupService`: derives participant access from a `CONFIRMED` registration with `PAID` or `EXEMPT` payment status. Cancelling a registration therefore removes group access without a duplicated membership table. Workshop creators and `ADMIN` can moderate their groups.
+- `GroupService`: derives participant access from a `CONFIRMED` registration with `PAID` or `EXEMPT` payment status. Cancelling a registration therefore removes group access without a duplicated membership table. Workshop creators and `ADMIN` can moderate their groups; `GroupResponse` exposes the resulting send/moderation permissions.
 - `Message`: stores author, content, sent/edited/deleted timestamps. Deletion is soft and responses hide deleted content while retaining a visible tombstone.
-- `ChatService`: persists before publishing, blocks sends and edits in inactive groups, enforces ownership/moderation and provides newest-first cursor pagination. `nextCursor` is the last returned message UUID and must be passed back unchanged.
+- `ChatService`: persists before publishing, blocks sends and edits in inactive groups, enforces ownership/moderation and provides newest-first cursor pagination. `nextCursor` is the last returned message UUID and must be passed back unchanged. REST sends may carry an optional UUID `Idempotency-Key`; a replay returns the stored message and does not emit another WebSocket event.
 - `GroupController` and `ChatController`: REST remains the persistent source of truth for group discovery and message history/actions.
 - `WebSocketConfiguration` and `ChatWebSocketController`: STOMP uses `/ws`, authenticates the `CONNECT` frame with the same JWT, authorizes every group subscription, accepts sends at `/app/groups/{groupId}/messages` and publishes only committed message representations to `/topic/groups/{groupId}`.
 
@@ -168,8 +174,8 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 
 - `Notification` is the persistent source of truth for the in-app centre. It stores type, safe display content, string metadata, read time, schedule, delivery time and creation time for one user.
 - `NotificationDevice` stores an unexposed provider token, platform and active lifecycle. Re-registering a token safely reassigns it to the authenticated user; deletion deactivates rather than exposing or returning the token.
-- `NotificationService` enforces ownership, paginates the centre, supports read/read-all, creates immediate or scheduled manual communication and dispatches due notifications through the replaceable `PushProvider` only after persistence commits.
-- `NoOpPushProvider` deliberately keeps the provider boundary inactive until external credentials/configuration exist; persistent notifications continue to work without push.
+- `NotificationService` enforces ownership, paginates the centre, supports read/read-all, creates immediate or scheduled manual communication and dispatches due notifications through the replaceable `PushProvider` only after persistence commits. `deliveredAt` is recorded only after every active device send succeeds (or when there are no active devices); a provider failure leaves the notification pending for the scheduler to retry and is logged without device tokens.
+- `NoOpPushProvider` keeps push inactive by default so persistent notifications continue to work without external configuration. Setting `PUSH_PROVIDER=expo` activates `ExpoPushProvider`; `EXPO_PUSH_ENDPOINT` and optional `EXPO_ACCESS_TOKEN` configure delivery without adding provider credentials to the repository.
 - Registration creation, waiting-list entry/promotion and payment confirmation/decline create automatic domain notifications in the same business transaction.
 - `V12__create_notifications.sql` creates notifications and devices with user, delivery and scheduling indexes.
 
@@ -200,11 +206,12 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `WorkshopResponse` and `NotificationResponse` expose `createdAt` and `updatedAt`. Workshop catalogue, published post feed and notification centre accept an exclusive `updatedAfter` timestamp; only content already visible to the caller is returned. Clients should deduplicate by resource ID and periodically perform a full page refresh to detect content that left a visible collection, such as archived posts.
 - Workshop detail responses use an ETag derived from ID and `updatedAt` with `Cache-Control: private, no-cache`. Clients may send `If-None-Match` for a `304` response after access control is checked.
 - `V16__add_cancellation_idempotency.sql` adds the cancellation key index and backfills notification update timestamps. PostgreSQL/Testcontainers tests cover concurrent cancellation and payment retries, incremental queries and the migration.
+- `V18__add_mobile_operation_idempotency.sql` adds nullable, per-user unique operation IDs for comments, messages and evaluations. Existing clients remain compatible; clients that send a UUID `Idempotency-Key` can safely retry after a lost response.
 
 
 ## Cross-cutting classes
 
-- `SecurityConfiguration`: stateless security, authorization routes and JSON authentication/authorization errors.
+- `SecurityConfiguration`: stateless security, authorization routes, JSON authentication/authorization errors and an explicit CORS allow-list. `CORS_ALLOWED_ORIGINS` accepts comma-separated browser origins; development defaults cover the Expo web server on localhost port 8081.
 - `PasswordConfiguration`: BCrypt `PasswordEncoder` bean.
 - `OpenApiConfiguration`: API metadata and Bearer JWT scheme.
 - `ApiErrorFactory`, `ApiErrorResponse`, `ApiFieldError`, `ErrorCode`, `ConflictException`, `GlobalExceptionHandler`: standard error contract.
@@ -231,6 +238,8 @@ Update this file in the same change when an endpoint, DTO, domain class, reposit
 - `RequestLoggingFilter` generates `X-Request-Id` and logs safe structured request fields:
   request ID, authenticated user ID, method, route template, status and duration.
   No request body, query, authorization header or arbitrary unmatched path is logged.
+- Unexpected failures keep the public `500 INTERNAL_ERROR` envelope and are logged
+  server-side with the matched route template and stack trace for diagnosis.
 - `application-prod.yml` requires external database, SMTP and JWT configuration,
   enables ECS JSON logs and suppresses health/error internals. The unused default
   in-memory Spring user auto-configuration is excluded.

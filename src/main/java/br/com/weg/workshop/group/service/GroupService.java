@@ -37,12 +37,13 @@ public class GroupService {
                 : manager
                 ? groups.findManagedByUserId(userId, pageable)
                 : groups.findAccessibleByUserId(userId, pageable);
-        return result.map(GroupResponse::from);
+        return result.map(group -> GroupResponse.from(group, isModerator(userId, admin, group)));
     }
 
     @Transactional(readOnly = true)
     public GroupResponse get(UUID userId, boolean admin, UUID groupId) {
-        return GroupResponse.from(requireAccess(userId, admin, groupId));
+        WorkshopGroup group = requireAccess(userId, admin, groupId);
+        return GroupResponse.from(group, isModerator(userId, admin, group));
     }
 
     @Transactional(readOnly = true)
