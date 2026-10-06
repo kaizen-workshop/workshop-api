@@ -88,7 +88,7 @@ Bearer tokens use `Authorization: Bearer <access-token>`. `/api/v1/admin/**` req
 ## Authentication module
 
 - `AuthenticationService`: validates credentials and account status, records login, issues access token and changes password after validating the previous password.
-- `JwtService`: signs and validates JWTs using external `JWT_SECRET`; tokens carry user ID, role, mandatory-password-change state and token version.
+- `JwtService`: signs and validates JWTs using `JWT_SECRET`; the `dev` profile has an explicitly non-production local default, while production requires an external value. Tokens carry user ID, role, mandatory-password-change state and token version.
 - `JwtAuthenticationFilter`: validates Bearer requests, establishes Spring Security authentication and rejects invalid/expired tokens.
 - `AuthController`: exposes login, password change, refresh rotation, logout and password recovery.
 - `LoginRequest`, `TokenResponse`, `ChangePasswordRequest`: login input, token output and password-change input.
