@@ -38,7 +38,15 @@ business rules and repositories are not accessed from controllers.
 
 ## Run locally
 
-Prerequisites: JDK 21 and Docker Desktop.
+Prerequisites: JDK 21 and Docker Desktop. `JAVA_HOME` must point to the JDK 21
+installation because the Maven Wrapper uses it even when another `java` executable
+appears earlier on `PATH`. Confirm the runtime before building:
+
+```bash
+./mvnw -version
+```
+
+On Windows, use `.\mvnw.cmd -version`.
 
 ```bash
 docker compose up -d

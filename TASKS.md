@@ -372,7 +372,7 @@ Delivered: account/token-version checks, session revocation on password change/r
 single-use token locking with PostgreSQL concurrency coverage, safe correlated request
 logs and a production profile, ADMIN-protected technical metrics, OpenAPI authentication
 contracts, WebSocket routing hardening, an authorization matrix and release checklist.
-Validation: Maven clean verify passed with Docker/PostgreSQL; 99 tests, no failures,
+Validation: Maven clean verify passed with Docker/PostgreSQL; 122 tests, no failures,
 errors or skips. Deployment and external integrations retain explicit checklist gates.
 
 ## MVP
