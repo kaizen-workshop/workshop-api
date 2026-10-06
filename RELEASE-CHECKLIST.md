@@ -7,7 +7,7 @@
 - Review the authorization matrix and business rules in `BUSINESS-RULES.md`.
 - Check `/v3/api-docs` against the mobile client, including UUID idempotency keys,
   cancellation retries, payment reconciliation and `304` handling.
-- Verify Flyway V1 through V18 on an empty PostgreSQL database; rehearse upgrading a
+- Verify Flyway V1 through V21 on an empty PostgreSQL database; rehearse upgrading a
   staging copy with its existing migration history. Never edit applied migrations.
 - Merge task branches through reviewed pull requests with passing CI.
 
