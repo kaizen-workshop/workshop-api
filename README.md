@@ -78,10 +78,18 @@ SMTP_PORT
 SMTP_USERNAME
 SMTP_PASSWORD
 JWT_SECRET
+CORS_ALLOWED_ORIGINS
+PUSH_PROVIDER
+EXPO_PUSH_ENDPOINT
+EXPO_ACCESS_TOKEN
 ```
 
 Never commit real credentials. Flyway runs migrations from
 `src/main/resources/db/migration`; Hibernate validates the schema and does not create it.
+
+The demo-data migration creates representative workshops, registrations, posts, chat,
+notifications and the following local accounts. They all use the password
+`Workshop@2026!`: `demo.carla` (ARWEG), `demo.ana` and `demo.bruno` (participants).
 
 ## API conventions
 
@@ -129,6 +137,10 @@ Use `SPRING_PROFILES_ACTIVE=prod` with external database, SMTP and JWT settings.
 The production profile emits ECS JSON logs and hides health/error details.
 `X-Request-Id` correlates requests. Technical metrics at `/actuator/metrics` require ADMIN.
 Password changes revoke existing sessions; clients must log in again.
+Browser clients may be enabled with a comma-separated `CORS_ALLOWED_ORIGINS` list;
+local development allows `http://localhost:8081` and `http://127.0.0.1:8081` by default.
+Push remains disabled by default. Set `PUSH_PROVIDER=expo` to use the built-in Expo adapter;
+keep any Expo access token in the environment.
 
 The authorization matrix is in [BUSINESS-RULES.md](BUSINESS-RULES.md).
 Follow [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) before deployment; production

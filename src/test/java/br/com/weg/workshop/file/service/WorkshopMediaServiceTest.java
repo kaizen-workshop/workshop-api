@@ -20,6 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class WorkshopMediaServiceTest {
@@ -61,6 +63,48 @@ class WorkshopMediaServiceTest {
         verify(attachments).flush();
         verify(storage).delete("workshops/old.png");
         assertThat(workshop.getImage()).startsWith("workshops/" + workshop.getId() + "/");
+    }
+
+    @Test
+    void removesTheNewStorageObjectWhenTheDatabaseTransactionRollsBack() throws IOException {
+        Workshop workshop = workshop();
+        when(workshops.manageableForMedia(workshop.getCreatedBy().getId(), false, workshop.getId())).thenReturn(workshop);
+        when(attachments.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.uploadAttachment(workshop.getCreatedBy().getId(), false, workshop.getId(), pngFile());
+            ArgumentCaptor<String> storageKey = ArgumentCaptor.forClass(String.class);
+            verify(storage).store(storageKey.capture(), any());
+            verify(storage, never()).delete(anyString());
+
+            TransactionSynchronizationManager.getSynchronizations().forEach(
+                    synchronization -> synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+
+            verify(storage).delete(storageKey.getValue());
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void removesReplacedStorageOnlyAfterTheDatabaseCommit() throws IOException {
+        Workshop workshop = workshop();
+        WorkshopAttachment previous = WorkshopAttachment.create(workshop, WorkshopFileType.IMAGE, "old.png", "image/png", "png", 9,
+                "0".repeat(64), "workshops/old.png");
+        when(workshops.manageableForMedia(workshop.getCreatedBy().getId(), false, workshop.getId())).thenReturn(workshop);
+        when(attachments.findByWorkshopIdAndType(workshop.getId(), WorkshopFileType.IMAGE)).thenReturn(Optional.of(previous));
+        when(attachments.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.uploadImage(workshop.getCreatedBy().getId(), false, workshop.getId(), pngFile());
+            verify(storage, never()).delete("workshops/old.png");
+
+            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+
+            verify(storage).delete("workshops/old.png");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     private MockMultipartFile pngFile() {

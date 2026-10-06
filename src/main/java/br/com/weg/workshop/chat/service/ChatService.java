@@ -59,11 +59,27 @@ public class ChatService {
 
     @Transactional
     public MessageResponse send(UUID userId, boolean admin, UUID groupId, MessageRequest request) {
+        return send(userId, admin, groupId, null, request);
+    }
+
+    @Transactional
+    public MessageResponse send(UUID userId, boolean admin, UUID groupId, UUID clientOperationId,
+                                MessageRequest request) {
         WorkshopGroup group = groups.requireAccess(userId, admin, groupId);
         requireActive(group);
-        UserEntity author = users.findById(userId)
+        UserEntity author = (clientOperationId == null ? users.findById(userId) : users.findByIdForUpdate(userId))
                 .orElseThrow(() -> new ResourceNotFoundException("User not found."));
-        MessageResponse response = MessageResponse.from(messages.save(Message.create(group, author, request.content())));
+        if (clientOperationId != null) {
+            Message existing = messages.findByAuthorIdAndClientOperationId(userId, clientOperationId).orElse(null);
+            if (existing != null) {
+                if (!existing.getGroup().getId().equals(groupId)) {
+                    throw new ConflictException("Idempotency-Key was already used for another message.");
+                }
+                return MessageResponse.from(existing);
+            }
+        }
+        MessageResponse response = MessageResponse.from(messages.save(
+                Message.create(group, author, request.content(), clientOperationId)));
         publish(response);
         return response;
     }

@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import br.com.weg.workshop.evaluation.dto.CreateEvaluationRequest;
+import br.com.weg.workshop.evaluation.domain.Evaluation;
 import br.com.weg.workshop.evaluation.repository.EvaluationRepository;
 import br.com.weg.workshop.preference.domain.*;
 import br.com.weg.workshop.registration.domain.RegistrationStatus;
@@ -54,6 +55,20 @@ class EvaluationServiceTest {
         when(evaluations.existsByUserIdAndWorkshopId(user.getId(), workshop.getId())).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(user.getId(), workshop.getId(), request())).isInstanceOf(ConflictException.class);
+        verify(evaluations, never()).save(any());
+    }
+
+    @Test
+    void replaysAnEvaluationWithTheSameIdempotencyKey() {
+        UserEntity user = activeUser(); Workshop workshop = completedWorkshop(); UUID key = UUID.randomUUID();
+        Evaluation evaluation = Evaluation.create(user, workshop, (short) 5, "Great", (short) 5,
+                (short) 4, (short) 5, key);
+        when(users.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
+        when(evaluations.findByUserIdAndClientOperationId(user.getId(), key)).thenReturn(Optional.of(evaluation));
+
+        var response = service.create(user.getId(), workshop.getId(), key, request());
+
+        assertThat(response.id()).isEqualTo(evaluation.getId());
         verify(evaluations, never()).save(any());
     }
 

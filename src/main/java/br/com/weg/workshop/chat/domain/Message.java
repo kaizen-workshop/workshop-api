@@ -31,6 +31,8 @@ public class Message {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    private UUID clientOperationId;
+
     @Column(nullable = false, updatable = false)
     private Instant sentAt;
 
@@ -41,11 +43,16 @@ public class Message {
     }
 
     public static Message create(WorkshopGroup group, UserEntity author, String content) {
+        return create(group, author, content, null);
+    }
+
+    public static Message create(WorkshopGroup group, UserEntity author, String content, UUID clientOperationId) {
         Message message = new Message();
         message.id = UUID.randomUUID();
         message.group = group;
         message.author = author;
         message.content = content;
+        message.clientOperationId = clientOperationId;
         message.sentAt = Instant.now();
         return message;
     }
@@ -64,6 +71,7 @@ public class Message {
     public WorkshopGroup getGroup() { return group; }
     public UserEntity getAuthor() { return author; }
     public String getContent() { return content; }
+    public UUID getClientOperationId() { return clientOperationId; }
     public Instant getSentAt() { return sentAt; }
     public Instant getEditedAt() { return editedAt; }
     public Instant getDeletedAt() { return deletedAt; }

@@ -10,6 +10,27 @@ import br.com.weg.workshop.post.domain.*; import br.com.weg.workshop.post.dto.*;
  @Scheduled(fixedDelayString="${app.posts.publication-interval-ms:60000}") @Transactional public void publishScheduled(){posts.findByStatusAndScheduledAtLessThanEqual(PostStatus.SCHEDULED,Instant.now()).forEach(p->{p.publish();audit.record(null,"PUBLISH","POST",p.getId(),"SCHEDULED","PUBLISHED");});}
  @Transactional(readOnly=true) public Page<PostResponse> feed(UUID userId,Instant updatedAfter,Pageable page){return posts.findFeed(userId,updatedAfter,page).map(p->response(p,userId));}
  @Transactional public void like(UUID userId,UUID id){Post p=published(id); if(!likes.existsByPostIdAndUserId(id,userId))likes.save(new PostLike(p,user(userId)));} @Transactional public void unlike(UUID userId,UUID id){published(id);likes.deleteByPostIdAndUserId(id,userId);}
- @Transactional public PostCommentResponse comment(UUID userId,UUID id,CreateCommentRequest r){return PostCommentResponse.from(comments.save(PostComment.create(published(id),user(userId),r.content())));}
+ @Transactional public PostCommentResponse comment(UUID userId,UUID id,CreateCommentRequest r){return comment(userId,id,null,r);}
+ @Transactional public PostCommentResponse comment(UUID userId,UUID id,UUID clientOperationId,CreateCommentRequest r){
+  UserEntity author=clientOperationId==null?user(userId):users.findByIdForUpdate(userId).orElseThrow(()->new ResourceNotFoundException("User not found."));
+  if(clientOperationId!=null){
+   PostComment existing=comments.findByUserIdAndClientOperationId(userId,clientOperationId).orElse(null);
+   if(existing!=null){
+    if(!existing.getPost().getId().equals(id))throw new ConflictException("Idempotency-Key was already used for another comment.");
+    return PostCommentResponse.from(existing);
+   }
+  }
+  return PostCommentResponse.from(comments.save(PostComment.create(published(id),author,r.content(),clientOperationId)));
+ }
  @Transactional(readOnly=true) public Page<PostCommentResponse> comments(UUID userId,UUID id,Pageable page){published(id);return comments.findByPostId(id,page).map(PostCommentResponse::from);}
- private PostResponse response(Post p,UUID userId){return PostResponse.from(p,likes.countByPostId(p.getId()),likes.existsByPostIdAndUserId(p.getId(),userId));} private Post published(UUID id){Post p=posts.findById(id).orElseThrow(()->new ResourceNotFoundException("Post not found."));if(p.getStatus()!=PostStatus.PUBLISHED)throw new ResourceNotFoundException("Post not found.");return p;} private Post managed(UUID u,boolean admin,UUID id){Post p=posts.findById(id).orElseThrow(()->new ResourceNotFoundException("Post not found."));if(!admin&&!p.getCreatedBy().getId().equals(u))throw new ResourceNotFoundException("Post not found.");return p;} private UserEntity user(UUID id){return users.findById(id).orElseThrow(()->new ResourceNotFoundException("User not found."));} private Workshop workshop(UUID id){return id==null?null:workshops.findById(id).orElseThrow(()->new ResourceNotFoundException("Workshop not found."));} private Category category(UUID id){return id==null?null:categories.findById(id).orElseThrow(()->new ResourceNotFoundException("Category not found."));} }
+ @Transactional public PostCommentResponse editComment(UUID userId,UUID postId,UUID commentId,CreateCommentRequest r){
+  published(postId);PostComment comment=comment(postId,commentId);
+  if(!comment.getUser().getId().equals(userId))throw new ResourceNotFoundException("Comment not found.");
+  comment.edit(r.content());return PostCommentResponse.from(comment);
+ }
+ @Transactional public void deleteComment(UUID userId,boolean admin,UUID postId,UUID commentId){
+  Post post=published(postId);PostComment comment=comment(postId,commentId);
+  if(!comment.getUser().getId().equals(userId)&&!admin&&!post.getCreatedBy().getId().equals(userId))throw new ResourceNotFoundException("Comment not found.");
+  comments.delete(comment);
+ }
+ private PostResponse response(Post p,UUID userId){return PostResponse.from(p,likes.countByPostId(p.getId()),likes.existsByPostIdAndUserId(p.getId(),userId));} private Post published(UUID id){Post p=posts.findById(id).orElseThrow(()->new ResourceNotFoundException("Post not found."));if(p.getStatus()!=PostStatus.PUBLISHED)throw new ResourceNotFoundException("Post not found.");return p;} private Post managed(UUID u,boolean admin,UUID id){Post p=posts.findById(id).orElseThrow(()->new ResourceNotFoundException("Post not found."));if(!admin&&!p.getCreatedBy().getId().equals(u))throw new ResourceNotFoundException("Post not found.");return p;} private PostComment comment(UUID postId,UUID commentId){return comments.findById(commentId).filter(c->c.getPost().getId().equals(postId)).orElseThrow(()->new ResourceNotFoundException("Comment not found."));} private UserEntity user(UUID id){return users.findById(id).orElseThrow(()->new ResourceNotFoundException("User not found."));} private Workshop workshop(UUID id){return id==null?null:workshops.findById(id).orElseThrow(()->new ResourceNotFoundException("Workshop not found."));} private Category category(UUID id){return id==null?null:categories.findById(id).orElseThrow(()->new ResourceNotFoundException("Category not found."));} }

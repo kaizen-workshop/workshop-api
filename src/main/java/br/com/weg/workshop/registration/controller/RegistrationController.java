@@ -4,6 +4,7 @@ import br.com.weg.workshop.registration.domain.RegistrationStatus;
 import br.com.weg.workshop.registration.dto.RegistrationResponse;
 import br.com.weg.workshop.registration.service.RegistrationService;
 import br.com.weg.workshop.payment.service.PaymentService;
+import br.com.weg.workshop.shared.pagination.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import java.util.UUID;
 import org.springframework.data.domain.*;
@@ -50,11 +51,12 @@ public class RegistrationController {
     @GetMapping("/api/v1/workshops/{workshopId}/registrations")
     @PreAuthorize("hasAnyRole('ARWEG','ADMIN')")
     @Operation(summary = "List registrations for a workshop")
-    public Page<RegistrationResponse> list(@PathVariable UUID workshopId,
+    public PageResponse<RegistrationResponse> list(@PathVariable UUID workshopId,
                                            @RequestParam(required = false) RegistrationStatus status,
                                            @PageableDefault(size = 20, sort = "registeredAt") Pageable pageable,
                                            Authentication authentication) {
-        return service.listForWorkshop(userId(authentication), admin(authentication), workshopId, status, pageable);
+        return PageResponse.from(service.listForWorkshop(
+                userId(authentication), admin(authentication), workshopId, status, pageable));
     }
 
     private UUID userId(Authentication authentication) {

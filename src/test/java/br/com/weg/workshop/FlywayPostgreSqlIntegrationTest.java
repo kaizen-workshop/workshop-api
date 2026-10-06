@@ -45,6 +45,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -75,6 +76,7 @@ class FlywayPostgreSqlIntegrationTest {
     @Autowired private WorkshopService workshopService;
     @Autowired private PostService postService;
     @Autowired private NotificationService notificationService;
+    @Autowired private PasswordEncoder passwordEncoder;
 
     @Test
     void flywayAppliesWorkshopMigration() {
@@ -103,6 +105,40 @@ class FlywayPostgreSqlIntegrationTest {
                         + "and table_name = 'notification' and column_name = 'updated_at' and is_nullable = 'NO'",
                 Integer.class);
         assertThat(notificationUpdateColumn).isEqualTo(1);
+        Integer operationMigration = jdbcTemplate.queryForObject(
+                "select count(*) from workshop.flyway_schema_history where version = '18' and success = true",
+                Integer.class);
+        assertThat(operationMigration).isEqualTo(1);
+        Integer operationColumns = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.columns where table_schema = 'workshop' "
+                        + "and column_name = 'client_operation_id' and table_name in "
+                        + "('post_comment', 'chat_message', 'evaluation')",
+                Integer.class);
+        assertThat(operationColumns).isEqualTo(3);
+        Integer taxonomyMigration = jdbcTemplate.queryForObject(
+                "select count(*) from workshop.flyway_schema_history where version = '19' and success = true",
+                Integer.class);
+        assertThat(taxonomyMigration).isEqualTo(1);
+        Integer activeThemes = jdbcTemplate.queryForObject(
+                "select count(*) from workshop.theme where active = true",
+                Integer.class);
+        Integer activeCategories = jdbcTemplate.queryForObject(
+                "select count(*) from workshop.category where active = true",
+                Integer.class);
+        assertThat(activeThemes).isGreaterThanOrEqualTo(6);
+        assertThat(activeCategories).isGreaterThanOrEqualTo(4);
+        Integer demoMigration = jdbcTemplate.queryForObject(
+                "select count(*) from workshop.flyway_schema_history where version = '20' and success = true",
+                Integer.class);
+        assertThat(demoMigration).isEqualTo(1);
+        Integer demoWorkshops = jdbcTemplate.queryForObject(
+                "select count(*) from workshop.workshop where id::text like '40000000-%'",
+                Integer.class);
+        assertThat(demoWorkshops).isEqualTo(6);
+        String demoPasswordHash = jdbcTemplate.queryForObject(
+                "select password_hash from workshop.app_user where username = 'demo.ana'",
+                String.class);
+        assertThat(passwordEncoder.matches("Workshop@2026!", demoPasswordHash)).isTrue();
     }
 
     @Test

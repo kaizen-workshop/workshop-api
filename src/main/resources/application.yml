@@ -36,7 +36,15 @@ springdoc:
 app:
   file-storage:
     local-directory: ${FILE_STORAGE_LOCAL_DIRECTORY:./storage}
+  notifications:
+    push:
+      provider: ${PUSH_PROVIDER:none}
+      expo:
+        endpoint: ${EXPO_PUSH_ENDPOINT:https://exp.host/--/api/v2/push/send}
+        access-token: ${EXPO_ACCESS_TOKEN:}
   security:
+    cors:
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8081,http://127.0.0.1:8081}
     jwt:
       secret: ${JWT_SECRET:}
       access-token-minutes: 15

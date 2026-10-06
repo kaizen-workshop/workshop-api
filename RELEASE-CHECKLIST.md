@@ -7,7 +7,7 @@
 - Review the authorization matrix and business rules in `BUSINESS-RULES.md`.
 - Check `/v3/api-docs` against the mobile client, including UUID idempotency keys,
   cancellation retries, payment reconciliation and `304` handling.
-- Verify Flyway V1 through V17 on an empty PostgreSQL database; rehearse upgrading a
+- Verify Flyway V1 through V18 on an empty PostgreSQL database; rehearse upgrading a
   staging copy with its existing migration history. Never edit applied migrations.
 - Merge task branches through reviewed pull requests with passing CI.
 
@@ -35,9 +35,9 @@
 
 ## Current integration limits
 
-Payment and push delivery currently use simulated adapters. Real gateway/push delivery
-must be implemented and validated before enabling those external services. API retry
-tests cover transactional local operations; they do not prove recovery from an external
+Payment delivery currently uses a simulated adapter. Push supports the optional Expo
+adapter but still requires real project credentials, device tokens and staging validation
+before release. API retry tests cover transactional local operations; they do not prove recovery from an external
 gateway success followed by a local database rollback. The in-memory STOMP broker
 requires a single application instance. Existing subscriptions are not automatically
 disconnected when membership changes; deploy-time lifecycle checks must account for it.

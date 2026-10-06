@@ -30,13 +30,29 @@ public class EvaluationService {
 
     @Transactional
     public EvaluationResponse create(UUID userId, UUID workshopId, CreateEvaluationRequest request) {
-        UserEntity user = users.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User not found."));
+        return create(userId, workshopId, null, request);
+    }
+
+    @Transactional
+    public EvaluationResponse create(UUID userId, UUID workshopId, UUID clientOperationId,
+                                     CreateEvaluationRequest request) {
+        UserEntity user = (clientOperationId == null ? users.findById(userId) : users.findByIdForUpdate(userId))
+                .orElseThrow(() -> new ResourceNotFoundException("User not found."));
+        if (clientOperationId != null) {
+            Evaluation existing = evaluations.findByUserIdAndClientOperationId(userId, clientOperationId).orElse(null);
+            if (existing != null) {
+                if (!existing.getWorkshop().getId().equals(workshopId)) {
+                    throw new ConflictException("Idempotency-Key was already used for another evaluation.");
+                }
+                return EvaluationResponse.from(existing);
+            }
+        }
         Workshop workshop = workshops.findById(workshopId).orElseThrow(() -> new ResourceNotFoundException("Workshop not found."));
         if (workshop.getEndDate().isAfter(LocalDate.now()) || !registrations.existsByUserIdAndWorkshopIdAndStatusIn(userId, workshopId, ELIGIBLE_STATUSES)) {
             throw new ConflictException("The user is not eligible to evaluate this workshop.");
         }
         if (evaluations.existsByUserIdAndWorkshopId(userId, workshopId)) throw new ConflictException("The workshop has already been evaluated.");
-        Evaluation evaluation = Evaluation.create(user, workshop, request.rating(), request.comment(), request.contentRating(), request.instructorRating(), request.organizationRating());
+        Evaluation evaluation = Evaluation.create(user, workshop, request.rating(), request.comment(), request.contentRating(), request.instructorRating(), request.organizationRating(), clientOperationId);
         return EvaluationResponse.from(evaluations.save(evaluation));
     }
 

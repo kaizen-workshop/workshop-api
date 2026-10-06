@@ -1,6 +1,7 @@
 package br.com.weg.workshop.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -48,6 +49,24 @@ class NotificationServiceTest {
         verify(notifications).save(any(Notification.class));
         verify(push).send("push-token", "Registration", "Created",
                 Map.of("registrationId", "registration-id"));
+        verify(notifications).markDelivered(any(UUID.class), any(Instant.class));
+    }
+
+    @Test
+    void keepsTheCommittedNotificationSuccessfulWhenPushDeliveryFails() {
+        UserEntity user = user("participant");
+        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(notifications.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        NotificationDevice device = NotificationDevice.create(user, "push-token", DevicePlatform.ANDROID);
+        when(devices.findByUserIdAndActiveTrue(user.getId())).thenReturn(List.of(device));
+        doThrow(new IllegalStateException("provider unavailable")).when(push)
+                .send("push-token", "Registration", "Created", Map.of());
+
+        assertThatCode(() -> service.notify(user.getId(), NotificationType.REGISTRATION_CREATED,
+                "Registration", "Created", Map.of())).doesNotThrowAnyException();
+
+        verify(notifications).save(any(Notification.class));
+        verify(notifications, never()).markDelivered(any(), any());
     }
 
     @Test
@@ -87,4 +106,5 @@ class NotificationServiceTest {
         return UserEntity.create(username, username, username + "@example.com", null, null, null, "hash",
                 Role.PARTICIPANT);
     }
+
 }

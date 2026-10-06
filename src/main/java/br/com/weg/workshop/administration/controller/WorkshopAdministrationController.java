@@ -3,6 +3,7 @@ package br.com.weg.workshop.administration.controller;
 import br.com.weg.workshop.administration.dto.*;
 import br.com.weg.workshop.administration.service.WorkshopAdministrationService;
 import br.com.weg.workshop.registration.domain.*;
+import br.com.weg.workshop.shared.pagination.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.nio.charset.StandardCharsets;
@@ -26,15 +27,15 @@ public class WorkshopAdministrationController {
 
     @GetMapping("/workshops/{workshopId}/participants")
     @Operation(summary = "List and filter participants of a managed workshop")
-    public Page<ParticipantResponse> participants(
+    public PageResponse<ParticipantResponse> participants(
             @PathVariable UUID workshopId,
             @RequestParam(required = false) RegistrationStatus registrationStatus,
             @RequestParam(required = false) RegistrationPaymentStatus paymentStatus,
             @RequestParam(required = false) AttendanceStatus attendanceStatus,
             @PageableDefault(size = 20, sort = "registeredAt") Pageable pageable,
             Authentication authentication) {
-        return service.participants(userId(authentication), admin(authentication), workshopId,
-                registrationStatus, paymentStatus, attendanceStatus, pageable);
+        return PageResponse.from(service.participants(userId(authentication), admin(authentication), workshopId,
+                registrationStatus, paymentStatus, attendanceStatus, pageable));
     }
 
     @PatchMapping("/workshops/{workshopId}/attendance")

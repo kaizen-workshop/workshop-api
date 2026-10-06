@@ -82,6 +82,23 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
                                            @Param("statuses") Collection<RegistrationStatus> statuses,
                                            @Param("today") LocalDate today, Pageable pageable);
 
+    @Query("select r from Registration r where r.user.id = :userId "
+            + "and r.status in :statuses and r.workshop.startDate > :today")
+    Page<Registration> findFutureByUser(@Param("userId") UUID userId,
+                                        @Param("statuses") Collection<RegistrationStatus> statuses,
+                                        @Param("today") LocalDate today, Pageable pageable);
+
+    @Query("select r from Registration r where r.user.id = :userId and r.status = 'CONFIRMED' "
+            + "and r.workshop.startDate <= :today and r.workshop.endDate >= :today")
+    Page<Registration> findInProgressByUser(@Param("userId") UUID userId,
+                                            @Param("today") LocalDate today, Pageable pageable);
+
+    @Query("select r from Registration r where r.user.id = :userId "
+            + "and (r.status in ('CANCELLED', 'REFUNDED') or r.workshop.status = 'CANCELLED')")
+    Page<Registration> findCancelledByUser(@Param("userId") UUID userId, Pageable pageable);
+
+    Page<Registration> findByUserIdAndStatus(UUID userId, RegistrationStatus status, Pageable pageable);
+
     @Query("select r from Registration r where r.user.id = :userId and r.status in :statuses "
             + "and (:from is null or r.workshop.startDate >= :from) and (:to is null or r.workshop.startDate <= :to)")
     Page<Registration> findCalendarByUser(@Param("userId") UUID userId,
