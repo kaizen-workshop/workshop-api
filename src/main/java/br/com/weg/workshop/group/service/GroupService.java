@@ -35,7 +35,7 @@ public class GroupService {
         Page<WorkshopGroup> result = admin
                 ? groups.findAll(pageable)
                 : manager
-                ? groups.findManagedByUserId(userId, pageable)
+                ? groups.findAccessibleOrManagedByUserId(userId, pageable)
                 : groups.findAccessibleByUserId(userId, pageable);
         return result.map(group -> GroupResponse.from(group, isModerator(userId, admin, group)));
     }

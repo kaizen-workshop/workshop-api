@@ -24,6 +24,16 @@ public interface WorkshopGroupRepository extends JpaRepository<WorkshopGroup, UU
             """)
     Page<WorkshopGroup> findAccessibleByUserId(@Param("userId") UUID userId, Pageable pageable);
 
-    @Query("select g from WorkshopGroup g where g.workshop.createdBy.id = :userId")
-    Page<WorkshopGroup> findManagedByUserId(@Param("userId") UUID userId, Pageable pageable);
+    @Query("""
+            select distinct g from WorkshopGroup g
+            left join Registration r on r.workshop = g.workshop
+            where g.workshop.createdBy.id = :userId
+               or (r.user.id = :userId
+                   and r.status = br.com.weg.workshop.registration.domain.RegistrationStatus.CONFIRMED
+                   and r.paymentStatus in (
+                     br.com.weg.workshop.registration.domain.RegistrationPaymentStatus.PAID,
+                     br.com.weg.workshop.registration.domain.RegistrationPaymentStatus.EXEMPT
+                   ))
+            """)
+    Page<WorkshopGroup> findAccessibleOrManagedByUserId(@Param("userId") UUID userId, Pageable pageable);
 }

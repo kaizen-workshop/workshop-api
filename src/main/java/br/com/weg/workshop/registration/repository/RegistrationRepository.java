@@ -35,8 +35,9 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
 
     long countByWorkshopIdAndStatusIn(UUID workshopId, Collection<RegistrationStatus> statuses);
 
-    @Query("select r from Registration r join r.user u where r.workshop.id = :workshopId and r.status = 'WAITING_LIST' "
-            + "and u.status = 'ACTIVE' order by r.registeredAt asc, r.id asc")
+    @Query(value = "select r.* from workshop.registration r join workshop.app_user u on u.id = r.user_id "
+            + "where r.workshop_id = :workshopId and r.status = 'WAITING_LIST' and u.status = 'ACTIVE' "
+            + "order by r.registered_at asc, r.id asc limit 1 for update", nativeQuery = true)
     Optional<Registration> findFirstEligibleWaitingListEntry(@Param("workshopId") UUID workshopId);
 
     @Query("select r from Registration r where r.workshop.id = :workshopId and (:status is null or r.status = :status)")

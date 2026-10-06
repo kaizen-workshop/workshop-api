@@ -72,7 +72,8 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentResponse simulatePaid(UUID paymentId) {
+    public PaymentResponse simulatePaid(UUID actorId, boolean admin, UUID paymentId) {
+        requireSimulationAccess(actorId, admin);
         Payment payment = payment(paymentId);
         if (payment.getStatus() == PaymentStatus.PAID) return PaymentResponse.from(payment);
         if (payment.getRegistration().getStatus() != RegistrationStatus.PENDING) {
@@ -90,7 +91,8 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentResponse simulateDeclined(UUID paymentId) {
+    public PaymentResponse simulateDeclined(UUID actorId, boolean admin, UUID paymentId) {
+        requireSimulationAccess(actorId, admin);
         Payment payment = payment(paymentId);
         if (payment.getStatus() == PaymentStatus.DECLINED) return PaymentResponse.from(payment);
         PaymentStatus previous = payment.getStatus();
@@ -155,6 +157,10 @@ public class PaymentService {
 
     private Payment payment(UUID paymentId) {
         return payments.findByIdForUpdate(paymentId).orElseThrow(() -> new ResourceNotFoundException("Payment not found."));
+    }
+
+    private void requireSimulationAccess(UUID actorId, boolean admin) {
+        if (actorId == null || !admin) throw new ResourceNotFoundException("Payment not found.");
     }
 
 }

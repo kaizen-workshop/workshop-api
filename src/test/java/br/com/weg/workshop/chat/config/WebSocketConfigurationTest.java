@@ -10,6 +10,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.messaging.simp.config.ChannelRegistration;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.StompWebSocketEndpointRegistration;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
@@ -21,7 +23,19 @@ import static org.mockito.Mockito.*;
 class WebSocketConfigurationTest {
     private final JwtService jwt = mock(JwtService.class);
     private final UserRepository users = mock(UserRepository.class);
-    private final WebSocketConfiguration configuration = new WebSocketConfiguration(jwt, mock(GroupService.class), users);
+    private final WebSocketConfiguration configuration = new WebSocketConfiguration(
+            jwt, mock(GroupService.class), users, java.util.List.of("https://app.example.com"));
+
+    @Test void websocketEndpointUsesTheConfiguredOriginAllowlist() {
+        var registry = mock(StompEndpointRegistry.class);
+        var endpoint = mock(StompWebSocketEndpointRegistration.class);
+        when(registry.addEndpoint("/ws")).thenReturn(endpoint);
+
+        configuration.registerStompEndpoints(registry);
+
+        verify(endpoint).setAllowedOrigins("https://app.example.com");
+        verify(endpoint, never()).setAllowedOriginPatterns("*");
+    }
 
     @Test void connectPreservesAuthenticatedPrincipal() {
         var user = UserEntity.create("Person", "person", "person@example.com", null, null, null, "hash", Role.PARTICIPANT);

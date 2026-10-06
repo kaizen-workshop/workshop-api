@@ -7,6 +7,7 @@ import br.com.weg.workshop.user.domain.UserStatus;
 import io.jsonwebtoken.Claims;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -29,11 +30,19 @@ public class WebSocketConfiguration implements WebSocketMessageBrokerConfigurer 
     private final JwtService jwt;
     private final GroupService groups;
     private final UserRepository users;
+    private final List<String> allowedOrigins;
 
-    public WebSocketConfiguration(JwtService jwt, GroupService groups, UserRepository users) {
+    public WebSocketConfiguration(
+            JwtService jwt,
+            GroupService groups,
+            UserRepository users,
+            @Value("${app.security.cors.allowed-origins:http://localhost:8081,http://127.0.0.1:8081}")
+            List<String> allowedOrigins
+    ) {
         this.jwt = jwt;
         this.groups = groups;
         this.users = users;
+        this.allowedOrigins = List.copyOf(allowedOrigins);
     }
 
     @Override
@@ -44,7 +53,7 @@ public class WebSocketConfiguration implements WebSocketMessageBrokerConfigurer 
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws").setAllowedOriginPatterns("*");
+        registry.addEndpoint("/ws").setAllowedOrigins(allowedOrigins.toArray(String[]::new));
     }
 
     @Override

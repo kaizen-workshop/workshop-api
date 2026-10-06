@@ -84,10 +84,11 @@ EXPO_PUSH_ENDPOINT
 EXPO_ACCESS_TOKEN
 ```
 
-Never commit real credentials. Flyway runs migrations from
-`src/main/resources/db/migration`; Hibernate validates the schema and does not create it.
+Never commit real credentials. Flyway runs production-safe migrations from
+`src/main/resources/db/migration`; the development profile additionally loads
+`src/main/resources/db/dev`. Hibernate validates the schema and does not create it.
 
-The demo-data migration creates representative workshops, registrations, posts, chat,
+The development-only demo-data migration creates representative workshops, registrations, posts, chat,
 notifications and the following local accounts. They all use the password
 `Workshop@2026!`: `demo.carla` (ARWEG), `demo.ana` and `demo.bruno` (participants).
 

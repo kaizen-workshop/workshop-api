@@ -32,8 +32,8 @@ internal Spring Data page implementations are never serialized directly.
 | `PATCH /api/v1/registrations/{id}/cancel` | Registration owner | Requires UUID `Idempotency-Key`. Cancels a valid registration and promotes the first eligible waiting-list participant if capacity is freed. A retry with the same key skips settlement/promotion; a key reused for another cancellation returns `409`. |
 | `GET /api/v1/workshops/{id}/registrations` | Workshop creator or `ADMIN` | Lists workshop registrations, paginated and optionally filtered by registration `status`. |
 | `POST /api/v1/registrations/{id}/payments` | Registration owner | Creates a simulated payment for a pending PIX/card registration. Requires a UUID `Idempotency-Key`; repeated use for the same registration returns the prior `PaymentResponse`. |
-| `PATCH /api/v1/payments/{id}/simulate/paid` | `ARWEG`, `ADMIN` | Simulates a successful internal gateway callback and confirms the registration. |
-| `PATCH /api/v1/payments/{id}/simulate/declined` | `ARWEG`, `ADMIN` | Simulates a declined internal gateway callback, cancels the registration and releases its vacancy. |
+| `PATCH /api/v1/payments/{id}/simulate/paid` | `ADMIN` | Simulates a successful internal gateway callback and confirms the registration. |
+| `PATCH /api/v1/payments/{id}/simulate/declined` | `ADMIN` | Simulates a declined internal gateway callback, cancels the registration and releases its vacancy. |
 | `POST /api/v1/workshops/{id}/image` | Creator or `ADMIN` | Uploads or replaces the workshop image from multipart part `file`. Accepts JPEG, PNG and WebP up to 10 MB. Returns `200` with `WorkshopFileResponse`. |
 | `GET /api/v1/workshops/{id}/image/content` | Authenticated viewer | Downloads the stored workshop image. |
 | `DELETE /api/v1/workshops/{id}/image` | Creator or `ADMIN` | Deletes the workshop image. Returns `204`. |
@@ -174,10 +174,10 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 
 - `Notification` is the persistent source of truth for the in-app centre. It stores type, safe display content, string metadata, read time, schedule, delivery time and creation time for one user.
 - `NotificationDevice` stores an unexposed provider token, platform and active lifecycle. Re-registering a token safely reassigns it to the authenticated user; deletion deactivates rather than exposing or returning the token.
-- `NotificationService` enforces ownership, paginates the centre, supports read/read-all, creates immediate or scheduled manual communication and dispatches due notifications through the replaceable `PushProvider` only after persistence commits. `deliveredAt` is recorded only after every active device send succeeds (or when there are no active devices); a provider failure leaves the notification pending for the scheduler to retry and is logged without device tokens.
+- `NotificationService` enforces ownership, paginates the centre, supports read/read-all, creates immediate or scheduled manual communication and dispatches due notifications through the replaceable `PushProvider` only after persistence commits. Successful device deliveries are recorded individually, so retries target only devices that have not received the notification. `deliveredAt` is recorded after every active device succeeds (or when there are no active devices); provider failures remain pending and are logged without device tokens.
 - `NoOpPushProvider` keeps push inactive by default so persistent notifications continue to work without external configuration. Setting `PUSH_PROVIDER=expo` activates `ExpoPushProvider`; `EXPO_PUSH_ENDPOINT` and optional `EXPO_ACCESS_TOKEN` configure delivery without adding provider credentials to the repository.
 - Registration creation, waiting-list entry/promotion and payment confirmation/decline create automatic domain notifications in the same business transaction.
-- `V12__create_notifications.sql` creates notifications and devices with user, delivery and scheduling indexes.
+- `V12__create_notifications.sql` creates notifications and devices with user, delivery and scheduling indexes; `V21__track_notification_device_delivery.sql` adds per-device delivery deduplication.
 
 ## Workshop administration module
 
