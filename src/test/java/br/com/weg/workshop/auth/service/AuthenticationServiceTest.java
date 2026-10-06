@@ -8,6 +8,7 @@ import br.com.weg.workshop.auth.domain.RefreshToken;
 import br.com.weg.workshop.auth.dto.*;
 import br.com.weg.workshop.auth.repository.PasswordResetTokenRepository;
 import br.com.weg.workshop.auth.repository.RefreshTokenRepository;
+import br.com.weg.workshop.preference.repository.UserThemeRepository;
 import br.com.weg.workshop.user.domain.Role;
 import br.com.weg.workshop.user.domain.UserEntity;
 import br.com.weg.workshop.user.repository.UserRepository;
@@ -30,6 +31,7 @@ class AuthenticationServiceTest {
     @Mock private PasswordResetTokenRepository resetTokens;
     @Mock private OpaqueTokenService opaque;
     @Mock private PasswordResetMailService resetMail;
+    @Mock private UserThemeRepository preferences;
     @InjectMocks private AuthenticationService service;
 
     @Test
@@ -40,7 +42,7 @@ class AuthenticationServiceTest {
         when(encoder.matches("password", user.getPasswordHash())).thenReturn(true);
         when(opaque.create()).thenReturn("refresh-token");
         when(opaque.hash("refresh-token")).thenReturn("refresh-hash");
-        when(jwt.createAccessToken(user.getId(), user.getRole(), true, user.getTokenVersion())).thenReturn("access-token");
+        when(jwt.createAccessToken(user.getId(), user.getRole(), true, false, user.getTokenVersion())).thenReturn("access-token");
 
         TokenResponse result = service.login(new LoginRequest("person@example.com", "password"));
 
@@ -58,7 +60,7 @@ class AuthenticationServiceTest {
         when(refreshTokens.findByTokenHash("old-hash")).thenReturn(Optional.of(existing));
         when(opaque.create()).thenReturn("new-token");
         when(opaque.hash("new-token")).thenReturn("new-hash");
-        when(jwt.createAccessToken(user.getId(), user.getRole(), true, user.getTokenVersion())).thenReturn("access-token");
+        when(jwt.createAccessToken(user.getId(), user.getRole(), true, false, user.getTokenVersion())).thenReturn("access-token");
 
         TokenResponse result = service.refresh(new RefreshTokenRequest("old-token"));
 

@@ -76,7 +76,7 @@ class PaymentServiceTest {
         Payment payment = Payment.create(registration, BigDecimal.TEN, PaymentMethod.PIX, "reference", UUID.randomUUID());
         when(payments.findByIdForUpdate(payment.getId())).thenReturn(Optional.of(payment));
 
-        service.simulatePaid(payment.getId());
+        service.simulatePaid(UUID.randomUUID(), true, payment.getId());
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
         assertThat(registration.getStatus()).isEqualTo(RegistrationStatus.CONFIRMED);
@@ -134,8 +134,16 @@ class PaymentServiceTest {
         Payment payment = paidPayment(registration);
         when(payments.findByIdForUpdate(payment.getId())).thenReturn(Optional.of(payment));
 
-        assertThat(service.simulatePaid(payment.getId()).status()).isEqualTo("PAID");
+        assertThat(service.simulatePaid(UUID.randomUUID(), true, payment.getId()).status()).isEqualTo("PAID");
         verifyNoInteractions(events, notifications);
+    }
+
+    @Test
+    void nonAdminCannotSimulatePaymentCallbacks() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> service.simulatePaid(UUID.randomUUID(), false, UUID.randomUUID()))
+                .isInstanceOf(br.com.weg.workshop.shared.error.ResourceNotFoundException.class);
+        verifyNoInteractions(payments);
     }
 
     private Payment paidPayment(Registration registration) {

@@ -29,6 +29,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 @ExtendWith(MockitoExtension.class)
 class GroupServiceTest {
@@ -76,6 +78,21 @@ class GroupServiceTest {
         var response = service.get(ownerId, false, group.getId());
         assertThat(response.canModerate()).isTrue();
         assertThat(response.canSendMessages()).isFalse();
+    }
+
+    @Test
+    void arwegListIncludesManagedAndMembershipGroups() {
+        UserEntity arweg = user("arweg", Role.ARWEG);
+        WorkshopGroup managed = group();
+        WorkshopGroup membership = group();
+        var pageable = PageRequest.of(0, 20);
+        when(groups.findAccessibleOrManagedByUserId(arweg.getId(), pageable))
+                .thenReturn(new PageImpl<>(java.util.List.of(managed, membership), pageable, 2));
+
+        var result = service.list(arweg.getId(), true, false, pageable);
+
+        assertThat(result.getContent()).extracting(response -> response.id())
+                .containsExactly(managed.getId(), membership.getId());
     }
 
     private WorkshopGroup group() {

@@ -9,4 +9,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface UserThemeRepository extends JpaRepository<UserTheme, UserThemeId> {
     void deleteByUserId(UUID userId);
     List<UserTheme> findByUserId(UUID userId);
+    boolean existsByUserId(UUID userId);
 }

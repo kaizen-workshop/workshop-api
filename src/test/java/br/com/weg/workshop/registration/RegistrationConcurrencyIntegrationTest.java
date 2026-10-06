@@ -6,6 +6,7 @@ import br.com.weg.workshop.TestcontainersConfiguration;
 import br.com.weg.workshop.preference.domain.*;
 import br.com.weg.workshop.preference.repository.*;
 import br.com.weg.workshop.registration.dto.RegistrationResponse;
+import br.com.weg.workshop.registration.domain.RegistrationStatus;
 import br.com.weg.workshop.registration.repository.RegistrationRepository;
 import br.com.weg.workshop.registration.service.RegistrationService;
 import br.com.weg.workshop.payment.service.PaymentService;
@@ -117,6 +118,32 @@ class RegistrationConcurrencyIntegrationTest {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    void cancellationPromotesOnlyTheFirstOfMultipleWaitingParticipants() {
+        UserEntity creator = saveActiveUser();
+        UserEntity owner = saveActiveUser();
+        UserEntity firstWaitingUser = saveActiveUser();
+        UserEntity secondWaitingUser = saveActiveUser();
+        Theme theme = themes.save(Theme.create("Theme " + UUID.randomUUID(), null));
+        Category category = categories.save(Category.create("Category " + UUID.randomUUID(), null));
+        Workshop workshop = Workshop.create(new WorkshopData("Waiting order workshop", "Description", null,
+                LocalDate.now().plusDays(2), LocalDate.now().plusDays(2), LocalTime.of(9, 0), LocalTime.of(10, 0),
+                "Room", WorkshopModality.IN_PERSON, BigDecimal.ZERO, Instant.now().minusSeconds(60),
+                Instant.now().plusSeconds(3600), 1, PaymentMethod.FREE, false, null), theme, category, creator);
+        workshop.publish();
+        workshops.saveAndFlush(workshop);
+        RegistrationResponse occupied = service.register(owner.getId(), workshop.getId(), UUID.randomUUID());
+        RegistrationResponse firstWaiting = service.register(firstWaitingUser.getId(), workshop.getId(), UUID.randomUUID());
+        RegistrationResponse secondWaiting = service.register(secondWaitingUser.getId(), workshop.getId(), UUID.randomUUID());
+
+        payments.cancelRegistration(owner.getId(), occupied.id(), UUID.randomUUID());
+
+        assertThat(registrations.findById(firstWaiting.id()).orElseThrow().getStatus())
+                .isEqualTo(RegistrationStatus.CONFIRMED);
+        assertThat(registrations.findById(secondWaiting.id()).orElseThrow().getStatus())
+                .isEqualTo(RegistrationStatus.WAITING_LIST);
     }
 
     @Test

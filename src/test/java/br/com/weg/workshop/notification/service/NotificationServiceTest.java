@@ -41,14 +41,14 @@ class NotificationServiceTest {
         when(users.findById(user.getId())).thenReturn(Optional.of(user));
         when(notifications.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         NotificationDevice device = NotificationDevice.create(user, "push-token", DevicePlatform.ANDROID);
-        when(devices.findByUserIdAndActiveTrue(user.getId())).thenReturn(List.of(device));
+        when(devices.findPendingDeliveryDevices(any(UUID.class), eq(user.getId()))).thenReturn(List.of(device));
 
         service.notify(user.getId(), NotificationType.REGISTRATION_CREATED, "Registration", "Created",
                 Map.of("registrationId", "registration-id"));
 
         verify(notifications).save(any(Notification.class));
-        verify(push).send("push-token", "Registration", "Created",
-                Map.of("registrationId", "registration-id"));
+        verify(push).send("push-token", "Registration", "Created", Map.of("registrationId", "registration-id"));
+        verify(devices).recordDelivery(any(UUID.class), eq(device.getId()), any(Instant.class));
         verify(notifications).markDelivered(any(UUID.class), any(Instant.class));
     }
 
@@ -58,7 +58,7 @@ class NotificationServiceTest {
         when(users.findById(user.getId())).thenReturn(Optional.of(user));
         when(notifications.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         NotificationDevice device = NotificationDevice.create(user, "push-token", DevicePlatform.ANDROID);
-        when(devices.findByUserIdAndActiveTrue(user.getId())).thenReturn(List.of(device));
+        when(devices.findPendingDeliveryDevices(any(UUID.class), eq(user.getId()))).thenReturn(List.of(device));
         doThrow(new IllegalStateException("provider unavailable")).when(push)
                 .send("push-token", "Registration", "Created", Map.of());
 
@@ -67,6 +67,37 @@ class NotificationServiceTest {
 
         verify(notifications).save(any(Notification.class));
         verify(notifications, never()).markDelivered(any(), any());
+        verify(devices, never()).recordDelivery(any(), any(), any());
+    }
+
+    @Test
+    void retrySkipsDevicesThatAlreadyReceivedTheNotification() {
+        UserEntity user = user("participant");
+        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(notifications.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        NotificationDevice successful = NotificationDevice.create(user, "successful-token", DevicePlatform.ANDROID);
+        NotificationDevice failing = NotificationDevice.create(user, "failing-token", DevicePlatform.IOS);
+        when(devices.findPendingDeliveryDevices(any(UUID.class), eq(user.getId())))
+                .thenReturn(List.of(successful, failing), List.of(failing));
+        doAnswer(invocation -> {
+            if ("failing-token".equals(invocation.getArgument(0))) {
+                throw new IllegalStateException("provider unavailable");
+            }
+            return null;
+        }).when(push).send(anyString(), eq("Registration"), eq("Created"), eq(Map.of()));
+
+        service.notify(user.getId(), NotificationType.REGISTRATION_CREATED, "Registration", "Created", Map.of());
+        var notificationCaptor = org.mockito.ArgumentCaptor.forClass(Notification.class);
+        verify(notifications).save(notificationCaptor.capture());
+        when(notifications.findByDeliveredAtIsNullAndScheduledAtLessThanEqual(any(Instant.class)))
+                .thenReturn(List.of(notificationCaptor.getValue()));
+
+        service.deliverScheduled();
+
+        verify(push, times(1)).send("successful-token", "Registration", "Created", Map.of());
+        verify(push, times(2)).send("failing-token", "Registration", "Created", Map.of());
+        verify(devices, times(1)).recordDelivery(
+                eq(notificationCaptor.getValue().getId()), eq(successful.getId()), any(Instant.class));
     }
 
     @Test
@@ -106,5 +137,4 @@ class NotificationServiceTest {
         return UserEntity.create(username, username, username + "@example.com", null, null, null, "hash",
                 Role.PARTICIPANT);
     }
-
 }

@@ -23,12 +23,21 @@ public class PaymentController {
     }
 
     @PatchMapping("/api/v1/payments/{paymentId}/simulate/paid")
-    @PreAuthorize("hasAnyRole('ARWEG','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Simulate a successful payment callback")
-    public PaymentResponse simulatePaid(@PathVariable UUID paymentId) { return service.simulatePaid(paymentId); }
+    public PaymentResponse simulatePaid(@PathVariable UUID paymentId, Authentication authentication) {
+        return service.simulatePaid(UUID.fromString(authentication.getName()), admin(authentication), paymentId);
+    }
 
     @PatchMapping("/api/v1/payments/{paymentId}/simulate/declined")
-    @PreAuthorize("hasAnyRole('ARWEG','ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Simulate a declined payment callback")
-    public PaymentResponse simulateDeclined(@PathVariable UUID paymentId) { return service.simulateDeclined(paymentId); }
+    public PaymentResponse simulateDeclined(@PathVariable UUID paymentId, Authentication authentication) {
+        return service.simulateDeclined(UUID.fromString(authentication.getName()), admin(authentication), paymentId);
+    }
+
+    private boolean admin(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+    }
 }

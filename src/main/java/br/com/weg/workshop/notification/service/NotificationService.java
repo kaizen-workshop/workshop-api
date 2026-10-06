@@ -98,7 +98,8 @@ public class NotificationService {
     private void scheduleDelivery(Notification notification) {
         Runnable delivery = () -> {
             try {
-                boolean delivered = devices.findByUserIdAndActiveTrue(notification.getUser().getId()).stream()
+                boolean delivered = devices.findPendingDeliveryDevices(
+                                notification.getId(), notification.getUser().getId()).stream()
                         .map(device -> deliverPush(notification, device))
                         .reduce(true, (left, right) -> left && right);
                 if (delivered) notifications.markDelivered(notification.getId(), Instant.now());
@@ -117,6 +118,7 @@ public class NotificationService {
     private boolean deliverPush(Notification notification, NotificationDevice device) {
         try {
             push.send(device.getToken(), notification.getTitle(), notification.getMessage(), data(notification));
+            devices.recordDelivery(notification.getId(), device.getId(), Instant.now());
             return true;
         } catch (RuntimeException exception) {
             LOGGER.warn("Push delivery failed for notificationId={}, deviceId={}, providerError={}",

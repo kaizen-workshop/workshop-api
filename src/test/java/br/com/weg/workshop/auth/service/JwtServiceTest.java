@@ -14,10 +14,12 @@ class JwtServiceTest {
     void createsAndParsesSignedAccessToken() {
         JwtService service = new JwtService(SECRET, 15);
         UUID userId = UUID.randomUUID();
-        String token = service.createAccessToken(userId, Role.ADMIN, false);
+        String token = service.createAccessToken(userId, Role.ADMIN, false, true, 3);
 
         assertThat(service.parse(token).getSubject()).isEqualTo(userId.toString());
         assertThat(service.parse(token).get("role", String.class)).isEqualTo("ADMIN");
+        assertThat(service.parse(token).get("requiresOnboarding", Boolean.class)).isTrue();
+        assertThat(service.parse(token).get("tokenVersion", Integer.class)).isEqualTo(3);
     }
 
     @Test
