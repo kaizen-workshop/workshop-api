@@ -67,6 +67,7 @@ internal Spring Data page implementations are never serialized directly.
 | `DELETE /api/v1/notification-devices/{id}` | Device owner | Deactivates a device and returns `204`. |
 | `POST /api/v1/arweg/notifications` | `ARWEG`, `ADMIN` | Creates immediate or scheduled manual notifications for the provided user IDs. |
 | `GET /api/v1/arweg/workshops/{id}/participants` | Workshop creator or `ADMIN` | Paginates participants with optional registration, payment and attendance status filters. |
+| `GET /api/v1/arweg/workshops/{id}/payments` | Workshop creator or `ADMIN` | Lists the workshop's payments (id, registration, participant, amount, status, method) newest first, so an `ADMIN` can confirm or decline a simulated payment by id. |
 | `PATCH /api/v1/arweg/workshops/{id}/attendance` | Workshop creator or `ADMIN` | Atomically records up to 500 attendance updates. |
 | `GET /api/v1/arweg/workshops/{id}/participants/export` | Workshop creator or `ADMIN` | Exports the filtered participant list as `CSV` or `XLSX`. |
 | `GET /api/v1/arweg/dashboard` | `ARWEG`, `ADMIN` | Returns workshop, registration, waiting-list and attendance totals scoped to managed workshops; admins see all workshops. |

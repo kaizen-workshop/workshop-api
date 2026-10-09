@@ -6,6 +6,8 @@ import static org.mockito.Mockito.*;
 
 import br.com.weg.workshop.administration.dto.*;
 import br.com.weg.workshop.audit.service.AuditService;
+import br.com.weg.workshop.payment.domain.Payment;
+import br.com.weg.workshop.payment.repository.PaymentRepository;
 import br.com.weg.workshop.preference.domain.*;
 import br.com.weg.workshop.registration.domain.*;
 import br.com.weg.workshop.registration.repository.RegistrationRepository;
@@ -32,6 +34,7 @@ class WorkshopAdministrationServiceTest {
     @Mock WorkshopRepository workshops;
     @Mock UserRepository users;
     @Mock AuditService audit;
+    @Mock PaymentRepository payments;
     @InjectMocks WorkshopAdministrationService service;
 
     @Test
@@ -52,6 +55,35 @@ class WorkshopAdministrationServiceTest {
             assertThat(participant.name()).isEqualTo("Participant");
             assertThat(participant.registrationStatus()).isEqualTo("CONFIRMED");
         });
+    }
+
+    @Test
+    void listsThePaymentsOfAManagedWorkshopWithTheirIds() {
+        UserEntity manager = activeUser("Manager");
+        Workshop workshop = workshop(manager);
+        Registration registration = confirmedRegistration(activeUser("Payer"), workshop);
+        Payment payment = Payment.create(registration, new BigDecimal("25.50"), PaymentMethod.PIX, "ref-1", UUID.randomUUID());
+        when(workshops.findById(workshop.getId())).thenReturn(Optional.of(workshop));
+        when(payments.findByWorkshopId(workshop.getId())).thenReturn(List.of(payment));
+
+        var response = service.payments(manager.getId(), false, workshop.getId());
+
+        assertThat(response).singleElement().satisfies(item -> {
+            assertThat(item.paymentId()).isEqualTo(payment.getId());
+            assertThat(item.participantName()).isEqualTo("Payer");
+            assertThat(item.status()).isEqualTo("PENDING");
+        });
+    }
+
+    @Test
+    void hidesThePaymentsOfWorkshopsTheCallerDoesNotManage() {
+        UserEntity manager = activeUser("Manager");
+        Workshop workshop = workshop(manager);
+        when(workshops.findById(workshop.getId())).thenReturn(Optional.of(workshop));
+
+        assertThatThrownBy(() -> service.payments(UUID.randomUUID(), false, workshop.getId()))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verifyNoInteractions(payments);
     }
 
     @Test

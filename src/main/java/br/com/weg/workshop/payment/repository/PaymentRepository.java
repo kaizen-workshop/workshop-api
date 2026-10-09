@@ -8,6 +8,9 @@ import org.springframework.data.repository.query.Param;
 
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     Optional<Payment> findByRegistrationId(UUID registrationId);
+    @Query("select p from Payment p join fetch p.registration r join fetch r.user "
+            + "where r.workshop.id = :workshopId order by p.createdAt desc")
+    List<Payment> findByWorkshopId(@Param("workshopId") UUID workshopId);
     Optional<Payment> findByIdempotencyKey(UUID idempotencyKey);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select p from Payment p where p.id = :id") Optional<Payment> findByIdForUpdate(@Param("id") UUID id);
 }

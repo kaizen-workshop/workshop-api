@@ -2,6 +2,7 @@ package br.com.weg.workshop.administration.service;
 import br.com.weg.workshop.audit.service.AuditService;
 
 import br.com.weg.workshop.administration.dto.*;
+import br.com.weg.workshop.payment.repository.PaymentRepository;
 import br.com.weg.workshop.registration.domain.*;
 import br.com.weg.workshop.registration.repository.RegistrationRepository;
 import br.com.weg.workshop.shared.error.*;
@@ -26,9 +27,11 @@ public class WorkshopAdministrationService {
     private final WorkshopRepository workshops;
     private final UserRepository users;
     private final AuditService audit;
+    private final PaymentRepository payments;
 
     public WorkshopAdministrationService(RegistrationRepository registrations, WorkshopRepository workshops,
-                                         UserRepository users, AuditService audit) {
+                                         UserRepository users, AuditService audit, PaymentRepository payments) {
+        this.payments = payments;
         this.registrations = registrations;
         this.workshops = workshops;
         this.users = users;
@@ -43,6 +46,12 @@ public class WorkshopAdministrationService {
         managedWorkshop(managerId, admin, workshopId);
         return registrations.findParticipants(workshopId, registrationStatus, paymentStatus, attendanceStatus, pageable)
                 .map(ParticipantResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public List<WorkshopPaymentResponse> payments(UUID managerId, boolean admin, UUID workshopId) {
+        managedWorkshop(managerId, admin, workshopId);
+        return payments.findByWorkshopId(workshopId).stream().map(WorkshopPaymentResponse::from).toList();
     }
 
     @Transactional

@@ -101,7 +101,8 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
     Page<Registration> findByUserIdAndStatus(UUID userId, RegistrationStatus status, Pageable pageable);
 
     @Query("select r from Registration r where r.user.id = :userId and r.status in :statuses "
-            + "and (:from is null or r.workshop.startDate >= :from) and (:to is null or r.workshop.startDate <= :to)")
+            + "and (cast(:from as date) is null or r.workshop.startDate >= :from) "
+            + "and (cast(:to as date) is null or r.workshop.startDate <= :to)")
     Page<Registration> findCalendarByUser(@Param("userId") UUID userId,
                                           @Param("statuses") Collection<RegistrationStatus> statuses,
                                           @Param("from") LocalDate from, @Param("to") LocalDate to, Pageable pageable);
