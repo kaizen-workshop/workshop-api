@@ -98,7 +98,8 @@ Never commit real credentials. Flyway runs production-safe migrations from
 
 The development-only demo-data migration creates representative workshops, registrations, posts, chat,
 notifications and the following local accounts. They all use the password
-`Workshop@2026!`: `demo.carla` (ARWEG), `demo.ana` and `demo.bruno` (participants).
+`Workshop@2026!`: `demo.carla` (ARWEG), `demo.ana` and `demo.bruno` (participants) and
+`demo.admin` (ADMIN, the only demo account that can confirm or decline simulated payments).
 
 ## API conventions
 

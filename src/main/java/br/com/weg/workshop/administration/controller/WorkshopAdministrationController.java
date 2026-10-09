@@ -65,6 +65,12 @@ public class WorkshopAdministrationController {
                 .body(export.content());
     }
 
+    @GetMapping("/workshops/{workshopId}/payments")
+    @Operation(summary = "List the payments of a managed workshop")
+    public List<WorkshopPaymentResponse> payments(@PathVariable UUID workshopId, Authentication authentication) {
+        return service.payments(userId(authentication), admin(authentication), workshopId);
+    }
+
     @GetMapping("/dashboard")
     @Operation(summary = "Return the ARWEG workshop administration dashboard")
     public DashboardResponse dashboard(Authentication authentication) {
