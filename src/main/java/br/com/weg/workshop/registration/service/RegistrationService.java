@@ -64,7 +64,7 @@ public class RegistrationService {
         Registration saved = registrations.save(registration);
         NotificationType type = status == RegistrationStatus.WAITING_LIST
                 ? NotificationType.WAITING_LIST_JOINED : NotificationType.REGISTRATION_CREATED;
-        notifications.notify(userId, type, "Workshop registration", registrationMessage(status),
+        notifications.notify(userId, type, "Inscrição no workshop", registrationMessage(status),
                 Map.of("workshopId", workshopId.toString(), "registrationId", saved.getId().toString()));
         return response(saved);
     }
@@ -151,7 +151,7 @@ public class RegistrationService {
         registrations.findFirstEligibleWaitingListEntry(workshop.getId()).ifPresent(waiting -> {
             waiting.promote(registrationStatus(workshop), paymentStatus(workshop));
             notifications.notify(waiting.getUser().getId(), NotificationType.WAITING_LIST_PROMOTED,
-                    "Waiting list update", "Your registration was promoted from the waiting list.",
+                    "Atualização da lista de espera", "Surgiu uma vaga e sua inscrição saiu da lista de espera.",
                     Map.of("workshopId", workshop.getId().toString(), "registrationId", waiting.getId().toString()));
         });
     }
@@ -196,8 +196,8 @@ public class RegistrationService {
 
     private String registrationMessage(RegistrationStatus status) {
         return status == RegistrationStatus.WAITING_LIST
-                ? "You joined the workshop waiting list."
-                : "Your workshop registration was created.";
+                ? "Você entrou na lista de espera do workshop."
+                : "Sua inscrição no workshop foi registrada.";
     }
 
     private RegistrationResponse response(Registration registration) {

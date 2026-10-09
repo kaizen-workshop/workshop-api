@@ -17,7 +17,7 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     @Query("""
             select m from Message m
             where m.group.id = :groupId
-              and (:cursorSentAt is null
+              and (cast(:cursorSentAt as timestamp) is null
                    or m.sentAt < :cursorSentAt
                    or (m.sentAt = :cursorSentAt and m.id < :cursorId))
             order by m.sentAt desc, m.id desc

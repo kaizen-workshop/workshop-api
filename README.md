@@ -65,6 +65,9 @@ Useful URLs after startup:
 - Health: `http://localhost:8082/actuator/health`
 - Swagger UI: `http://localhost:8082/swagger-ui.html`
 - OpenAPI JSON: `http://localhost:8082/v3/api-docs`
+- Dev mailbox (Mailpit): `http://localhost:8025`. `docker compose up -d` also starts it. The API
+  sends every e-mail to SMTP `localhost:1025`, so password-reset codes and first-access
+  e-mails are read there. Without it the first-access and recovery requests fail with HTTP 500.
 
 The development profile uses port `8082` by default to avoid collisions with
 other local Tomcat installations. Set `SERVER_PORT` to override it.

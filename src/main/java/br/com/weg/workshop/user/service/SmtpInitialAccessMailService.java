@@ -11,8 +11,11 @@ class SmtpInitialAccessMailService implements InitialAccessMailService {
     public void send(String recipient, String username, String temporaryPassword) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(recipient);
-        message.setSubject("Workshop API initial access");
-        message.setText("Username: " + username + "\nTemporary password: " + temporaryPassword);
+        message.setSubject("Seu primeiro acesso ao Workshops");
+        message.setText("Seu acesso foi criado.\n\n"
+                + "Usuário: " + username + "\n"
+                + "Senha temporária: " + temporaryPassword + "\n\n"
+                + "No primeiro login você vai criar uma nova senha.");
         mailSender.send(message);
     }
 }
