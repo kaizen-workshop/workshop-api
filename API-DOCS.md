@@ -48,6 +48,7 @@ internal Spring Data page implementations are never serialized directly.
 | `GET /api/v1/workshops/{id}/evaluations/summary` | Workshop creator or `ADMIN` | Returns count and average overall/content/instructor/organization ratings. |
 | `POST /api/v1/posts`, `PUT /api/v1/posts/{id}` | `ARWEG`, `ADMIN` | Creates or updates a draft post owned by the caller (or any post for ADMIN). |
 | `PATCH /api/v1/posts/{id}/schedule`, `/publish`, `/archive` | Post owner or `ADMIN` | Applies a valid publication lifecycle transition. |
+| `GET /api/v1/posts/managed` | `ARWEG`, `ADMIN` | Lists the caller's own posts in any status (draft, scheduled, published, archived), newest first, so drafts can be found again to edit, schedule or publish. `ADMIN` sees every post. |
 | `GET /api/v1/posts/feed` | Authenticated | Lists published posts, paginated by published time, with optional exclusive `updatedAfter` filter; highlights are returned as feed metadata. |
 | `PUT` / `DELETE /api/v1/posts/{id}/like` | Authenticated | Adds/removes the caller's idempotent like. |
 | `POST` / `GET /api/v1/posts/{id}/comments` | Authenticated | Creates or paginates comments on a published post. Creation accepts an optional UUID `Idempotency-Key` for safe retry. |

@@ -32,6 +32,19 @@ class EvaluationServiceTest {
     @InjectMocks EvaluationService service;
 
     @Test
+    void summarisesRatingsOfAManagedWorkshop() {
+        UserEntity manager = activeUser(); Workshop workshop = completedWorkshop();
+        when(workshops.findById(workshop.getId())).thenReturn(Optional.of(workshop));
+        when(evaluations.summarize(workshop.getId())).thenReturn(List.<Object[]>of(new Object[] {4.5, 4.0, 5.0, 3.0, 2L}));
+
+        var summary = service.summary(workshop.getCreatedBy().getId(), false, workshop.getId());
+
+        assertThat(summary.total()).isEqualTo(2);
+        assertThat(summary.averageRating()).isEqualTo(4.5);
+        assertThat(summary.averageOrganizationRating()).isEqualTo(3.0);
+    }
+
+    @Test
     void createsEvaluationForConfirmedParticipantAfterCompletion() {
         UserEntity user = activeUser(); Workshop workshop = completedWorkshop();
         when(users.findById(user.getId())).thenReturn(Optional.of(user));

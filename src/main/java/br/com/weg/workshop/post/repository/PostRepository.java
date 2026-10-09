@@ -13,4 +13,7 @@ package br.com.weg.workshop.post.repository; import br.com.weg.workshop.audit.dt
  @Query("select p from Post p where p.status = 'PUBLISHED' and (cast(:updatedAfter as timestamp) is null or p.updatedAt > :updatedAfter) order by p.highlight desc, "
  + "case when exists (select ut from UserTheme ut where ut.user.id = :userId and p.workshop is not null and ut.theme.id = p.workshop.theme.id) then 0 else 1 end, "
  + "case when p.workshop is not null and p.workshop.startDate >= current_date and p.workshop.registrationStart <= current_timestamp and p.workshop.registrationEnd >= current_timestamp then 0 else 1 end, p.publishedAt desc, p.id desc")
- Page<Post> findFeed(@Param("userId") UUID userId, @Param("updatedAfter") Instant updatedAfter, Pageable pageable); List<Post> findByStatusAndScheduledAtLessThanEqual(PostStatus status,Instant instant); }
+ Page<Post> findFeed(@Param("userId") UUID userId, @Param("updatedAfter") Instant updatedAfter, Pageable pageable); List<Post> findByStatusAndScheduledAtLessThanEqual(PostStatus status,Instant instant);  @Query(value="select p from Post p where :admin = true or p.createdBy.id = :userId",
+  countQuery="select count(p) from Post p where :admin = true or p.createdBy.id = :userId")
+ Page<Post> findManaged(@Param("userId") UUID userId,@Param("admin") boolean admin,Pageable pageable);
+}
