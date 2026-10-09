@@ -84,7 +84,7 @@ public class PaymentService {
         payment.getRegistration().confirmPayment();
         events.save(PaymentEvent.create(payment, previous));
         notifications.notify(payment.getRegistration().getUser().getId(), NotificationType.PAYMENT_CONFIRMED,
-                "Payment confirmed", "Your workshop payment was confirmed.",
+                "Pagamento confirmado", "O pagamento da sua inscrição foi confirmado.",
                 java.util.Map.of("paymentId", payment.getId().toString(),
                         "registrationId", payment.getRegistration().getId().toString()));
         return PaymentResponse.from(payment);
@@ -101,7 +101,7 @@ public class PaymentService {
         registration.markPaymentDeclined();
         events.save(PaymentEvent.create(payment, previous));
         notifications.notify(payment.getRegistration().getUser().getId(), NotificationType.PAYMENT_DECLINED,
-                "Payment declined", "Your workshop payment was declined.",
+                "Pagamento recusado", "O pagamento da sua inscrição foi recusado e a vaga foi liberada.",
                 java.util.Map.of("paymentId", payment.getId().toString(),
                         "registrationId", payment.getRegistration().getId().toString()));
         return PaymentResponse.from(payment);
