@@ -22,6 +22,12 @@ public class PaymentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(UUID.fromString(authentication.getName()), registrationId, idempotencyKey));
     }
 
+    @PatchMapping("/api/v1/payments/{paymentId}/pay")
+    @Operation(summary = "Complete a simulated PIX payment as the registration owner")
+    public PaymentResponse payWithSimulatedPix(@PathVariable UUID paymentId, Authentication authentication) {
+        return service.payWithSimulatedPix(UUID.fromString(authentication.getName()), paymentId);
+    }
+
     @PatchMapping("/api/v1/payments/{paymentId}/simulate/paid")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Simulate a successful payment callback")

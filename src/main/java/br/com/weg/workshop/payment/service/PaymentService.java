@@ -74,7 +74,23 @@ public class PaymentService {
     @Transactional
     public PaymentResponse simulatePaid(UUID actorId, boolean admin, UUID paymentId) {
         requireSimulationAccess(actorId, admin);
+        return confirmPaid(payment(paymentId));
+    }
+
+    /** Lets the registration owner finish a simulated PIX payment, standing in for the bank callback. */
+    @Transactional
+    public PaymentResponse payWithSimulatedPix(UUID userId, UUID paymentId) {
         Payment payment = payment(paymentId);
+        if (!payment.getRegistration().getUser().getId().equals(userId)) {
+            throw new ResourceNotFoundException("Payment not found.");
+        }
+        if (payment.getMethod() != PaymentMethod.PIX) {
+            throw new ConflictException("Only PIX payments can be completed this way.");
+        }
+        return confirmPaid(payment);
+    }
+
+    private PaymentResponse confirmPaid(Payment payment) {
         if (payment.getStatus() == PaymentStatus.PAID) return PaymentResponse.from(payment);
         if (payment.getRegistration().getStatus() != RegistrationStatus.PENDING) {
             throw new ConflictException("Only pending registrations can be paid.");
