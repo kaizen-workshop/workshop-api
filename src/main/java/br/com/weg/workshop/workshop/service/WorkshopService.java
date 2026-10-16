@@ -31,6 +31,14 @@ public class WorkshopService {
  @Transactional(readOnly=true) public Workshop visibleForMedia(UUID userId, boolean admin, UUID id){Workshop workshop=workshop(id); if(workshop.getStatus()!=WorkshopStatus.PUBLISHED&&!admin&&!workshop.getCreatedBy().getId().equals(userId))throw new ResourceNotFoundException("Workshop not found."); return workshop;}
  @Transactional(readOnly=true) public Workshop manageableForMedia(UUID userId, boolean admin, UUID id){return manageable(userId,admin,id);}
  @Scheduled(fixedDelayString="${app.workshop.scheduled-publication-delay-ms:60000}") @Transactional public void publishScheduled(){workshops.findByStatusAndScheduledPublishAtLessThanEqual(WorkshopStatus.SCHEDULED,Instant.now()).forEach(workshop->{workshop.publish();groupLifecycle.activateFor(workshop);audit.record(null,"PUBLISH","WORKSHOP",workshop.getId(),"SCHEDULED","PUBLISHED");});}
+ /** Closes published workshops whose end date has passed, so the catalogue lists only upcoming ones. */
+ @Scheduled(fixedDelayString="${app.workshop.auto-close-delay-ms:3600000}") @Transactional public void closeFinished(){
+  workshops.findByStatusAndEndDateBefore(WorkshopStatus.PUBLISHED,java.time.LocalDate.now()).forEach(workshop->{
+   workshop.close();
+   groupLifecycle.deactivateFor(workshop);
+   audit.record(null,"CLOSE","WORKSHOP",workshop.getId(),"PUBLISHED","CLOSED");
+  });
+ }
  private void transition(Workshop workshop,WorkshopStatus target){boolean valid=switch(workshop.getStatus()){case DRAFT->target==WorkshopStatus.SCHEDULED||target==WorkshopStatus.PUBLISHED;case SCHEDULED->target==WorkshopStatus.PUBLISHED;case PUBLISHED->target==WorkshopStatus.CLOSED||target==WorkshopStatus.CANCELLED;case CLOSED->target==WorkshopStatus.ARCHIVED;default->false;};if(!valid)throw new ConflictException("Invalid workshop status transition.");}
  private Workshop manageable(UUID userId,boolean admin,UUID id){Workshop workshop=workshop(id);if(!admin&&!workshop.getCreatedBy().getId().equals(userId))throw new ResourceNotFoundException("Workshop not found.");return workshop;}
  private Workshop workshop(UUID id){return workshops.findById(id).orElseThrow(()->new ResourceNotFoundException("Workshop not found."));} private UserEntity user(UUID id){return users.findById(id).orElseThrow(()->new ResourceNotFoundException("User not found."));} private Theme activeTheme(UUID id){Theme theme=themes.findById(id).orElseThrow(()->new ResourceNotFoundException("Theme not found."));if(!theme.isActive())throw new IllegalArgumentException("Theme must be active.");return theme;} private Category activeCategory(UUID id){Category category=categories.findById(id).orElseThrow(()->new ResourceNotFoundException("Category not found."));if(!category.isActive())throw new IllegalArgumentException("Category must be active.");return category;}

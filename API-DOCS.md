@@ -115,6 +115,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 
 ## Workshop module
 
+- `WorkshopService.closeFinished`: hourly job (`app.workshop.auto-close-delay-ms`) that closes `PUBLISHED` workshops whose end date has passed and deactivates their groups; audited with a null actor.
 - `Workshop`: catalogue entity associated with active `Theme`, `Category` and the creating user. It stores scheduling, registration window, capacity, modality, price, payment method, `championship` flag, image reference and audit fields. The championship flag controls the refund exception and defaults to `false` for existing workshops.
 - `WorkshopStatus`: `DRAFT`, `SCHEDULED`, `PUBLISHED`, `CLOSED`, `CANCELLED`, `ARCHIVED`. Allowed transitions are `DRAFT -> SCHEDULED|PUBLISHED`, `SCHEDULED -> PUBLISHED`, `PUBLISHED -> CLOSED|CANCELLED` and `CLOSED -> ARCHIVED`.
 - `WorkshopService`: validates workshop periods and active taxonomy references, restricts non-public visibility to the creator or admin, centralizes transitions, duplication and scheduled publication.
