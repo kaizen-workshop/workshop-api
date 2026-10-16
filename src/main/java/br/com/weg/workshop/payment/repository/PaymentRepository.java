@@ -13,4 +13,6 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     List<Payment> findByWorkshopId(@Param("workshopId") UUID workshopId);
     Optional<Payment> findByIdempotencyKey(UUID idempotencyKey);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select p from Payment p where p.id = :id") Optional<Payment> findByIdForUpdate(@Param("id") UUID id);
+    @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select p from Payment p where p.registration.id in :registrationIds")
+    List<Payment> findAllByRegistrationIdInForUpdate(@Param("registrationIds") Collection<UUID> registrationIds);
 }

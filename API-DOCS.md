@@ -102,7 +102,7 @@ Bearer tokens use `Authorization: Bearer <access-token>`. `/api/v1/admin/**` req
 - `LoginRequest`, `TokenResponse`, `ChangePasswordRequest`: login input, token output and password-change input.
 - `V3__create_auth_tokens.sql`: creates storage reserved for refresh and password-reset tokens.
 
-Refresh-token rotation, logout and password recovery are implemented with opaque SHA-256-hashed tokens persisted in PostgreSQL. Password-reset requests always return `202` to avoid e-mail enumeration; reset tokens are single-use and expire after one hour. Invalid login, refresh, current-password and reset-token credentials use the standard `401 UNAUTHORIZED` envelope instead of falling through to an internal error. Authentication coverage includes token integrity/expiration, refresh rotation, blocked accounts and missing-token/role-boundary integration checks.
+Refresh-token rotation, logout and password recovery are implemented with opaque SHA-256-hashed tokens persisted in PostgreSQL. Password-reset requests always return `202` to avoid e-mail enumeration; reset tokens are single-use and expire after one hour. Invalid login, refresh and reset-token credentials use the standard `401 UNAUTHORIZED` envelope; a wrong current password on change returns `400 VALIDATION_ERROR` with field `currentPassword` (`InvalidCurrentPasswordException`) so a valid session is not mistaken for an expired one. `PasswordRules` enforces 8–128 characters with letters and digits on `ChangePasswordRequest` and `ResetPasswordRequest`. These errors use the standard envelope instead of falling through to an internal error. Authentication coverage includes token integrity/expiration, refresh rotation, blocked accounts and missing-token/role-boundary integration checks.
 
 ## Profile and preference module
 
@@ -147,6 +147,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `PaymentGateway`: provider-neutral port. `SimulatedPaymentGateway` is the current internal study implementation and creates opaque `simulated-*` references without calling an external provider.
 - `PaymentService`: creates payments only for the owner of a pending PIX/card registration. It uses the required `Idempotency-Key` to safely return prior requests and avoids duplicate payments per registration. ARWEG/Admin simulation endpoints confirm or decline a payment.
 - Cancellation retains the registration flow from TASK-007 and settles the payment in the same transaction: a pending payment is cancelled; a paid registration is refunded only when the workshop starts in more than 48 hours or it is marked as a championship. At exactly 48 hours or later, non-championship cancellations keep the payment as `PAID` and receive no refund. Payment failure or cancellation releases the occupied vacancy and promotes the waiting list through the registration service.
+- `PaymentService.settleWorkshopCancellation`: called by `WorkshopService.cancel`; locks the workshop, its valid registrations (`RegistrationService.cancelAllForWorkshop`) and their payments, cancels pending payments, refunds paid ones unconditionally, records payment events and notifies participants with `WORKSHOP_CANCELLED`.
 - `V8__add_championship_and_payments.sql`: adds the immutable `championship` workshop flag plus payment/event tables, unique idempotency and registration constraints, valid-status checks and audit index.
 
 ## Evaluation module
@@ -160,6 +161,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 
 - `Post` supports `DRAFT`, `SCHEDULED`, `PUBLISHED` and `ARCHIVED`; only owners or admins manage it. A scheduled worker publishes due posts every minute, configurable with `app.posts.publication-interval-ms`.
 - Published posts are the only posts readable through feed, likes and comments. `PostLike` has a composite database key to prevent duplicate likes; comments are separately paginated. Comment authors can edit their content; authors, post owners and admins can delete it. Optional creation idempotency serializes on the user and replays the original comment.
+- `PostRepository.findFeed` uses an explicit `left join` on the workshop so posts without a linked workshop (announcements) are listed; implicit path joins would turn into inner joins.
 - `PostService` keeps post ownership and transition checks in the service layer. The deterministic feed ranks highlighted posts, the caller's selected workshop themes, upcoming workshops with open registration, then recency; it returns highlight/like metadata without exposing drafts or scheduled content.
 - `V10__create_posts.sql` adds posts, likes and comments with lifecycle constraints and feed/comment indexes.
 

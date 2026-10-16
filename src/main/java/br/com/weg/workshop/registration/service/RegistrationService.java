@@ -136,6 +136,18 @@ public class RegistrationService {
         return registration;
     }
 
+    /**
+     * Cancels every valid registration of a workshop cancelled by its organizer. No waiting-list promotion
+     * happens because the workshop no longer accepts participants; payment settlement is the caller's job.
+     */
+    @Transactional
+    public List<Registration> cancelAllForWorkshop(UUID workshopId) {
+        lockedWorkshop(workshopId);
+        List<Registration> cancelled = registrations.findAllByWorkshopIdAndStatusInForUpdate(workshopId, VALID_STATUSES);
+        cancelled.forEach(Registration::cancel);
+        return cancelled;
+    }
+
     @Transactional(readOnly = true)
     public Page<RegistrationResponse> listForWorkshop(UUID managerId, boolean admin, UUID workshopId,
                                                        RegistrationStatus status, Pageable pageable) {
