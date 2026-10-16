@@ -1,46 +1,261 @@
 package br.com.weg.workshop.workshop.service;
-import br.com.weg.workshop.audit.service.AuditService;
 
-import br.com.weg.workshop.preference.domain.*;
-import br.com.weg.workshop.preference.repository.*;
+import br.com.weg.workshop.audit.service.AuditService;
 import br.com.weg.workshop.group.service.GroupLifecycleService;
 import br.com.weg.workshop.payment.service.PaymentService;
+import br.com.weg.workshop.preference.domain.*;
+import br.com.weg.workshop.preference.repository.*;
 import br.com.weg.workshop.shared.error.*;
 import br.com.weg.workshop.user.domain.*;
 import br.com.weg.workshop.user.repository.UserRepository;
 import br.com.weg.workshop.workshop.domain.*;
 import br.com.weg.workshop.workshop.dto.*;
 import br.com.weg.workshop.workshop.repository.WorkshopRepository;
-import java.time.Instant; import java.util.*;
-import org.springframework.data.domain.*; import org.springframework.scheduling.annotation.Scheduled; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.*;
+import org.springframework.data.domain.*;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class WorkshopService {
- private final WorkshopRepository workshops; private final ThemeRepository themes; private final CategoryRepository categories; private final UserRepository users; private final GroupLifecycleService groupLifecycle; private final AuditService audit; private final PaymentService payments;
- public WorkshopService(WorkshopRepository workshops,ThemeRepository themes,CategoryRepository categories,UserRepository users,GroupLifecycleService groupLifecycle,AuditService audit,PaymentService payments){this.workshops=workshops;this.themes=themes;this.categories=categories;this.users=users;this.groupLifecycle=groupLifecycle;this.audit=audit;this.payments=payments;}
- @Transactional public WorkshopResponse create(UUID userId, WorkshopRequest request){UserEntity user=user(userId); Workshop workshop=workshops.save(Workshop.create(data(request), activeTheme(request.themeId()), activeCategory(request.categoryId()), user));groupLifecycle.createFor(workshop);audit.record(userId,"CREATE","WORKSHOP",workshop.getId(),null,workshop.getStatus().name());return WorkshopResponse.from(workshop);}
- @Transactional(readOnly=true) public Page<WorkshopResponse> list(UUID userId, boolean admin, WorkshopStatus status, UUID themeId, UUID categoryId, Instant updatedAfter, Pageable pageable){return workshops.findVisible(userId,admin,status,themeId,categoryId,updatedAfter,pageable).map(WorkshopResponse::from);}
- @Transactional(readOnly=true) public WorkshopResponse get(UUID userId, boolean admin, UUID id){Workshop workshop=workshop(id); if(workshop.getStatus()!=WorkshopStatus.PUBLISHED&&!admin&&!workshop.getCreatedBy().getId().equals(userId))throw new ResourceNotFoundException("Workshop not found."); return WorkshopResponse.from(workshop);}
- @Transactional public WorkshopResponse update(UUID userId,boolean admin,UUID id,WorkshopRequest request){Workshop workshop=manageable(userId,admin,id); if(workshop.getStatus()!=WorkshopStatus.DRAFT&&workshop.getStatus()!=WorkshopStatus.SCHEDULED)throw new ConflictException("Only draft or scheduled workshops can be edited."); String before=WorkshopResponse.from(workshop).toString();workshop.apply(data(request),activeTheme(request.themeId()),activeCategory(request.categoryId()));audit.record(userId,"UPDATE","WORKSHOP",id,before,WorkshopResponse.from(workshop).toString()); return WorkshopResponse.from(workshop);}
- @Transactional public WorkshopResponse schedule(UUID userId,boolean admin,UUID id,SchedulePublicationRequest request){Workshop workshop=manageable(userId,admin,id); transition(workshop,WorkshopStatus.SCHEDULED); String before=workshop.getStatus().name(); workshop.schedule(request.scheduledPublishAt());audit.record(userId,"SCHEDULE","WORKSHOP",id,before,workshop.getStatus().name()); return WorkshopResponse.from(workshop);}
- @Transactional public WorkshopResponse publish(UUID userId,boolean admin,UUID id){Workshop workshop=manageable(userId,admin,id); transition(workshop,WorkshopStatus.PUBLISHED);String before=workshop.getStatus().name(); workshop.publish();groupLifecycle.activateFor(workshop);audit.record(userId,"PUBLISH","WORKSHOP",id,before,workshop.getStatus().name());return WorkshopResponse.from(workshop);}
- @Transactional public WorkshopResponse close(UUID userId,boolean admin,UUID id){Workshop workshop=manageable(userId,admin,id); transition(workshop,WorkshopStatus.CLOSED);String before=workshop.getStatus().name(); workshop.close();groupLifecycle.deactivateFor(workshop);audit.record(userId,"CLOSE","WORKSHOP",id,before,workshop.getStatus().name());return WorkshopResponse.from(workshop);}
- @Transactional public WorkshopResponse cancel(UUID userId,boolean admin,UUID id){Workshop workshop=manageable(userId,admin,id); transition(workshop,WorkshopStatus.CANCELLED);String before=workshop.getStatus().name(); workshop.cancel();groupLifecycle.deactivateFor(workshop);payments.settleWorkshopCancellation(id);audit.record(userId,"CANCEL","WORKSHOP",id,before,workshop.getStatus().name());return WorkshopResponse.from(workshop);}
- @Transactional public WorkshopResponse archive(UUID userId,boolean admin,UUID id){Workshop workshop=manageable(userId,admin,id); transition(workshop,WorkshopStatus.ARCHIVED);String before=workshop.getStatus().name(); workshop.archive();groupLifecycle.deactivateFor(workshop);audit.record(userId,"ARCHIVE","WORKSHOP",id,before,workshop.getStatus().name());return WorkshopResponse.from(workshop);}
- @Transactional public WorkshopResponse duplicate(UUID userId,boolean admin,UUID id){Workshop source=manageable(userId,admin,id); UserEntity creator=user(userId); WorkshopData copy=new WorkshopData(source.getTitle()+" (copy)",source.getDescription(),source.getImage(),source.getStartDate(),source.getEndDate(),source.getStartTime(),source.getEndTime(),source.getLocation(),source.getModality(),source.getPrice(),source.getRegistrationStart(),source.getRegistrationEnd(),source.getMaximumParticipants(),source.getPaymentMethod(),source.isChampionship(),source.getAdditionalInformation());Workshop duplicate=workshops.save(Workshop.create(copy,source.getTheme(),source.getCategory(),creator));groupLifecycle.createFor(duplicate);audit.record(userId,"DUPLICATE","WORKSHOP",duplicate.getId(),id.toString(),"DRAFT");return WorkshopResponse.from(duplicate);}
- @Transactional(readOnly=true) public Workshop visibleForMedia(UUID userId, boolean admin, UUID id){Workshop workshop=workshop(id); if(workshop.getStatus()!=WorkshopStatus.PUBLISHED&&!admin&&!workshop.getCreatedBy().getId().equals(userId))throw new ResourceNotFoundException("Workshop not found."); return workshop;}
- @Transactional(readOnly=true) public Workshop manageableForMedia(UUID userId, boolean admin, UUID id){return manageable(userId,admin,id);}
- @Scheduled(fixedDelayString="${app.workshop.scheduled-publication-delay-ms:60000}") @Transactional public void publishScheduled(){workshops.findByStatusAndScheduledPublishAtLessThanEqual(WorkshopStatus.SCHEDULED,Instant.now()).forEach(workshop->{workshop.publish();groupLifecycle.activateFor(workshop);audit.record(null,"PUBLISH","WORKSHOP",workshop.getId(),"SCHEDULED","PUBLISHED");});}
- /** Closes published workshops whose end date has passed, so the catalogue lists only upcoming ones. */
- @Scheduled(fixedDelayString="${app.workshop.auto-close-delay-ms:3600000}") @Transactional public void closeFinished(){
-  workshops.findByStatusAndEndDateBefore(WorkshopStatus.PUBLISHED,java.time.LocalDate.now()).forEach(workshop->{
-   workshop.close();
-   groupLifecycle.deactivateFor(workshop);
-   audit.record(null,"CLOSE","WORKSHOP",workshop.getId(),"PUBLISHED","CLOSED");
-  });
- }
- private void transition(Workshop workshop,WorkshopStatus target){boolean valid=switch(workshop.getStatus()){case DRAFT->target==WorkshopStatus.SCHEDULED||target==WorkshopStatus.PUBLISHED;case SCHEDULED->target==WorkshopStatus.PUBLISHED;case PUBLISHED->target==WorkshopStatus.CLOSED||target==WorkshopStatus.CANCELLED;case CLOSED->target==WorkshopStatus.ARCHIVED;default->false;};if(!valid)throw new ConflictException("Invalid workshop status transition.");}
- private Workshop manageable(UUID userId,boolean admin,UUID id){Workshop workshop=workshop(id);if(!admin&&!workshop.getCreatedBy().getId().equals(userId))throw new ResourceNotFoundException("Workshop not found.");return workshop;}
- private Workshop workshop(UUID id){return workshops.findById(id).orElseThrow(()->new ResourceNotFoundException("Workshop not found."));} private UserEntity user(UUID id){return users.findById(id).orElseThrow(()->new ResourceNotFoundException("User not found."));} private Theme activeTheme(UUID id){Theme theme=themes.findById(id).orElseThrow(()->new ResourceNotFoundException("Theme not found."));if(!theme.isActive())throw new IllegalArgumentException("Theme must be active.");return theme;} private Category activeCategory(UUID id){Category category=categories.findById(id).orElseThrow(()->new ResourceNotFoundException("Category not found."));if(!category.isActive())throw new IllegalArgumentException("Category must be active.");return category;}
- private WorkshopData data(WorkshopRequest r){if(r.endDate().isBefore(r.startDate())||(r.endDate().equals(r.startDate())&&!r.endTime().isAfter(r.startTime())))throw new IllegalArgumentException("Workshop end must be after start.");if(!r.registrationEnd().isAfter(r.registrationStart()))throw new IllegalArgumentException("Registration end must be after start.");if(r.paymentMethod()==PaymentMethod.FREE?r.price().signum()!=0:r.price().signum()<=0)throw new IllegalArgumentException("Free workshops must cost zero and paid workshops must have a positive price.");return new WorkshopData(r.title(),r.description(),r.image(),r.startDate(),r.endDate(),r.startTime(),r.endTime(),r.location(),r.modality(),r.price(),r.registrationStart(),r.registrationEnd(),r.maximumParticipants(),r.paymentMethod(),r.championship(),r.additionalInformation());}
+
+    private static final String ENTITY = "WORKSHOP";
+
+    private final WorkshopRepository workshops;
+    private final ThemeRepository themes;
+    private final CategoryRepository categories;
+    private final UserRepository users;
+    private final GroupLifecycleService groupLifecycle;
+    private final AuditService audit;
+    private final PaymentService payments;
+
+    public WorkshopService(WorkshopRepository workshops, ThemeRepository themes, CategoryRepository categories,
+                           UserRepository users, GroupLifecycleService groupLifecycle, AuditService audit,
+                           PaymentService payments) {
+        this.workshops = workshops;
+        this.themes = themes;
+        this.categories = categories;
+        this.users = users;
+        this.groupLifecycle = groupLifecycle;
+        this.audit = audit;
+        this.payments = payments;
+    }
+
+    @Transactional
+    public WorkshopResponse create(UUID userId, WorkshopRequest request) {
+        UserEntity user = user(userId);
+        Workshop workshop = workshops.save(Workshop.create(
+                data(request), activeTheme(request.themeId()), activeCategory(request.categoryId()), user));
+        groupLifecycle.createFor(workshop);
+        audit.record(userId, "CREATE", ENTITY, workshop.getId(), null, workshop.getStatus().name());
+        return WorkshopResponse.from(workshop);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<WorkshopResponse> list(UUID userId, boolean admin, WorkshopStatus status, UUID themeId,
+                                       UUID categoryId, Instant updatedAfter, Pageable pageable) {
+        return workshops.findVisible(userId, admin, status, themeId, categoryId, updatedAfter, pageable)
+                .map(WorkshopResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public WorkshopResponse get(UUID userId, boolean admin, UUID id) {
+        return WorkshopResponse.from(visible(userId, admin, id));
+    }
+
+    @Transactional
+    public WorkshopResponse update(UUID userId, boolean admin, UUID id, WorkshopRequest request) {
+        Workshop workshop = manageable(userId, admin, id);
+        if (workshop.getStatus() != WorkshopStatus.DRAFT && workshop.getStatus() != WorkshopStatus.SCHEDULED) {
+            throw new ConflictException("Only draft or scheduled workshops can be edited.");
+        }
+        String before = WorkshopResponse.from(workshop).toString();
+        workshop.apply(data(request), activeTheme(request.themeId()), activeCategory(request.categoryId()));
+        audit.record(userId, "UPDATE", ENTITY, id, before, WorkshopResponse.from(workshop).toString());
+        return WorkshopResponse.from(workshop);
+    }
+
+    @Transactional
+    public WorkshopResponse schedule(UUID userId, boolean admin, UUID id, SchedulePublicationRequest request) {
+        Workshop workshop = manageable(userId, admin, id);
+        transition(workshop, WorkshopStatus.SCHEDULED);
+        String before = workshop.getStatus().name();
+        workshop.schedule(request.scheduledPublishAt());
+        audit.record(userId, "SCHEDULE", ENTITY, id, before, workshop.getStatus().name());
+        return WorkshopResponse.from(workshop);
+    }
+
+    @Transactional
+    public WorkshopResponse publish(UUID userId, boolean admin, UUID id) {
+        Workshop workshop = manageable(userId, admin, id);
+        transition(workshop, WorkshopStatus.PUBLISHED);
+        String before = workshop.getStatus().name();
+        workshop.publish();
+        groupLifecycle.activateFor(workshop);
+        audit.record(userId, "PUBLISH", ENTITY, id, before, workshop.getStatus().name());
+        return WorkshopResponse.from(workshop);
+    }
+
+    @Transactional
+    public WorkshopResponse close(UUID userId, boolean admin, UUID id) {
+        Workshop workshop = manageable(userId, admin, id);
+        transition(workshop, WorkshopStatus.CLOSED);
+        String before = workshop.getStatus().name();
+        workshop.close();
+        groupLifecycle.deactivateFor(workshop);
+        audit.record(userId, "CLOSE", ENTITY, id, before, workshop.getStatus().name());
+        return WorkshopResponse.from(workshop);
+    }
+
+    /** Cancelling also refunds or cancels every registration payment and notifies the participants. */
+    @Transactional
+    public WorkshopResponse cancel(UUID userId, boolean admin, UUID id) {
+        Workshop workshop = manageable(userId, admin, id);
+        transition(workshop, WorkshopStatus.CANCELLED);
+        String before = workshop.getStatus().name();
+        workshop.cancel();
+        groupLifecycle.deactivateFor(workshop);
+        payments.settleWorkshopCancellation(id);
+        audit.record(userId, "CANCEL", ENTITY, id, before, workshop.getStatus().name());
+        return WorkshopResponse.from(workshop);
+    }
+
+    @Transactional
+    public WorkshopResponse archive(UUID userId, boolean admin, UUID id) {
+        Workshop workshop = manageable(userId, admin, id);
+        transition(workshop, WorkshopStatus.ARCHIVED);
+        String before = workshop.getStatus().name();
+        workshop.archive();
+        groupLifecycle.deactivateFor(workshop);
+        audit.record(userId, "ARCHIVE", ENTITY, id, before, workshop.getStatus().name());
+        return WorkshopResponse.from(workshop);
+    }
+
+    @Transactional
+    public WorkshopResponse duplicate(UUID userId, boolean admin, UUID id) {
+        Workshop source = manageable(userId, admin, id);
+        UserEntity creator = user(userId);
+        WorkshopData copy = new WorkshopData(source.getTitle() + " (copy)", source.getDescription(),
+                source.getImage(), source.getStartDate(), source.getEndDate(), source.getStartTime(),
+                source.getEndTime(), source.getLocation(), source.getModality(), source.getPrice(),
+                source.getRegistrationStart(), source.getRegistrationEnd(), source.getMaximumParticipants(),
+                source.getPaymentMethod(), source.isChampionship(), source.getAdditionalInformation());
+        Workshop duplicate = workshops.save(
+                Workshop.create(copy, source.getTheme(), source.getCategory(), creator));
+        groupLifecycle.createFor(duplicate);
+        audit.record(userId, "DUPLICATE", ENTITY, duplicate.getId(), id.toString(), "DRAFT");
+        return WorkshopResponse.from(duplicate);
+    }
+
+    @Transactional(readOnly = true)
+    public Workshop visibleForMedia(UUID userId, boolean admin, UUID id) {
+        return visible(userId, admin, id);
+    }
+
+    @Transactional(readOnly = true)
+    public Workshop manageableForMedia(UUID userId, boolean admin, UUID id) {
+        return manageable(userId, admin, id);
+    }
+
+    @Scheduled(fixedDelayString = "${app.workshop.scheduled-publication-delay-ms:60000}")
+    @Transactional
+    public void publishScheduled() {
+        workshops.findByStatusAndScheduledPublishAtLessThanEqual(WorkshopStatus.SCHEDULED, Instant.now())
+                .forEach(workshop -> {
+                    workshop.publish();
+                    groupLifecycle.activateFor(workshop);
+                    audit.record(null, "PUBLISH", ENTITY, workshop.getId(), "SCHEDULED", "PUBLISHED");
+                });
+    }
+
+    /** Closes published workshops whose end date has passed, so the catalogue lists only upcoming ones. */
+    @Scheduled(fixedDelayString = "${app.workshop.auto-close-delay-ms:3600000}")
+    @Transactional
+    public void closeFinished() {
+        workshops.findByStatusAndEndDateBefore(WorkshopStatus.PUBLISHED, LocalDate.now()).forEach(workshop -> {
+            workshop.close();
+            groupLifecycle.deactivateFor(workshop);
+            audit.record(null, "CLOSE", ENTITY, workshop.getId(), "PUBLISHED", "CLOSED");
+        });
+    }
+
+    private void transition(Workshop workshop, WorkshopStatus target) {
+        boolean valid = switch (workshop.getStatus()) {
+            case DRAFT -> target == WorkshopStatus.SCHEDULED || target == WorkshopStatus.PUBLISHED;
+            case SCHEDULED -> target == WorkshopStatus.PUBLISHED;
+            case PUBLISHED -> target == WorkshopStatus.CLOSED || target == WorkshopStatus.CANCELLED;
+            case CLOSED -> target == WorkshopStatus.ARCHIVED;
+            default -> false;
+        };
+        if (!valid) {
+            throw new ConflictException("Invalid workshop status transition.");
+        }
+    }
+
+    /** Anyone sees published workshops; other states are visible only to the creator and admins. */
+    private Workshop visible(UUID userId, boolean admin, UUID id) {
+        Workshop workshop = workshop(id);
+        if (workshop.getStatus() != WorkshopStatus.PUBLISHED && !admin
+                && !workshop.getCreatedBy().getId().equals(userId)) {
+            throw new ResourceNotFoundException("Workshop not found.");
+        }
+        return workshop;
+    }
+
+    private Workshop manageable(UUID userId, boolean admin, UUID id) {
+        Workshop workshop = workshop(id);
+        if (!admin && !workshop.getCreatedBy().getId().equals(userId)) {
+            throw new ResourceNotFoundException("Workshop not found.");
+        }
+        return workshop;
+    }
+
+    private Workshop workshop(UUID id) {
+        return workshops.findById(id).orElseThrow(() -> new ResourceNotFoundException("Workshop not found."));
+    }
+
+    private UserEntity user(UUID id) {
+        return users.findById(id).orElseThrow(() -> new ResourceNotFoundException("User not found."));
+    }
+
+    private Theme activeTheme(UUID id) {
+        Theme theme = themes.findById(id).orElseThrow(() -> new ResourceNotFoundException("Theme not found."));
+        if (!theme.isActive()) {
+            throw new IllegalArgumentException("Theme must be active.");
+        }
+        return theme;
+    }
+
+    private Category activeCategory(UUID id) {
+        Category category = categories.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found."));
+        if (!category.isActive()) {
+            throw new IllegalArgumentException("Category must be active.");
+        }
+        return category;
+    }
+
+    private WorkshopData data(WorkshopRequest r) {
+        boolean endsBeforeStart = r.endDate().isBefore(r.startDate())
+                || (r.endDate().equals(r.startDate()) && !r.endTime().isAfter(r.startTime()));
+        if (endsBeforeStart) {
+            throw new IllegalArgumentException("Workshop end must be after start.");
+        }
+        if (!r.registrationEnd().isAfter(r.registrationStart())) {
+            throw new IllegalArgumentException("Registration end must be after start.");
+        }
+        boolean priceMatchesPaymentMethod = r.paymentMethod() == PaymentMethod.FREE
+                ? r.price().signum() == 0
+                : r.price().signum() > 0;
+        if (!priceMatchesPaymentMethod) {
+            throw new IllegalArgumentException(
+                    "Free workshops must cost zero and paid workshops must have a positive price.");
+        }
+        return new WorkshopData(r.title(), r.description(), r.image(), r.startDate(), r.endDate(), r.startTime(),
+                r.endTime(), r.location(), r.modality(), r.price(), r.registrationStart(), r.registrationEnd(),
+                r.maximumParticipants(), r.paymentMethod(), r.championship(), r.additionalInformation());
+    }
 }
