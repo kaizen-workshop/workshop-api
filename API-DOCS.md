@@ -48,6 +48,7 @@ internal Spring Data page implementations are never serialized directly.
 | `GET /api/v1/workshops/{id}/evaluations/summary` | Workshop creator or `ADMIN` | Returns count and average overall/content/instructor/organization ratings. |
 | `POST /api/v1/posts`, `PUT /api/v1/posts/{id}` | `ARWEG`, `ADMIN` | Creates or updates a draft post owned by the caller (or any post for ADMIN). |
 | `PATCH /api/v1/posts/{id}/schedule`, `/publish`, `/archive` | Post owner or `ADMIN` | Applies a valid publication lifecycle transition. |
+| `GET /api/v1/posts/managed` | `ARWEG`, `ADMIN` | Lists the caller's own posts in any status (draft, scheduled, published, archived), newest first, so drafts can be found again to edit, schedule or publish. `ADMIN` sees every post. |
 | `GET /api/v1/posts/feed` | Authenticated | Lists published posts, paginated by published time, with optional exclusive `updatedAfter` filter; highlights are returned as feed metadata. |
 | `PUT` / `DELETE /api/v1/posts/{id}/like` | Authenticated | Adds/removes the caller's idempotent like. |
 | `POST` / `GET /api/v1/posts/{id}/comments` | Authenticated | Creates or paginates comments on a published post. Creation accepts an optional UUID `Idempotency-Key` for safe retry. |
@@ -101,7 +102,7 @@ Bearer tokens use `Authorization: Bearer <access-token>`. `/api/v1/admin/**` req
 - `LoginRequest`, `TokenResponse`, `ChangePasswordRequest`: login input, token output and password-change input.
 - `V3__create_auth_tokens.sql`: creates storage reserved for refresh and password-reset tokens.
 
-Refresh-token rotation, logout and password recovery are implemented with opaque SHA-256-hashed tokens persisted in PostgreSQL. Password-reset requests always return `202` to avoid e-mail enumeration; reset tokens are single-use and expire after one hour. Invalid login, refresh, current-password and reset-token credentials use the standard `401 UNAUTHORIZED` envelope instead of falling through to an internal error. Authentication coverage includes token integrity/expiration, refresh rotation, blocked accounts and missing-token/role-boundary integration checks.
+Refresh-token rotation, logout and password recovery are implemented with opaque SHA-256-hashed tokens persisted in PostgreSQL. Password-reset requests always return `202` to avoid e-mail enumeration; reset tokens are single-use and expire after one hour. Invalid login, refresh and reset-token credentials use the standard `401 UNAUTHORIZED` envelope; a wrong current password on change returns `400 VALIDATION_ERROR` with field `currentPassword` (`InvalidCurrentPasswordException`) so a valid session is not mistaken for an expired one. `PasswordRules` enforces 8–128 characters with letters and digits on `ChangePasswordRequest` and `ResetPasswordRequest`. These errors use the standard envelope instead of falling through to an internal error. Authentication coverage includes token integrity/expiration, refresh rotation, blocked accounts and missing-token/role-boundary integration checks.
 
 ## Profile and preference module
 
@@ -114,6 +115,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 
 ## Workshop module
 
+- `WorkshopService.closeFinished`: hourly job (`app.workshop.auto-close-delay-ms`) that closes `PUBLISHED` workshops whose end date has passed and deactivates their groups; audited with a null actor.
 - `Workshop`: catalogue entity associated with active `Theme`, `Category` and the creating user. It stores scheduling, registration window, capacity, modality, price, payment method, `championship` flag, image reference and audit fields. The championship flag controls the refund exception and defaults to `false` for existing workshops.
 - `WorkshopStatus`: `DRAFT`, `SCHEDULED`, `PUBLISHED`, `CLOSED`, `CANCELLED`, `ARCHIVED`. Allowed transitions are `DRAFT -> SCHEDULED|PUBLISHED`, `SCHEDULED -> PUBLISHED`, `PUBLISHED -> CLOSED|CANCELLED` and `CLOSED -> ARCHIVED`.
 - `WorkshopService`: validates workshop periods and active taxonomy references, restricts non-public visibility to the creator or admin, centralizes transitions, duplication and scheduled publication.
@@ -146,6 +148,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `PaymentGateway`: provider-neutral port. `SimulatedPaymentGateway` is the current internal study implementation and creates opaque `simulated-*` references without calling an external provider.
 - `PaymentService`: creates payments only for the owner of a pending PIX/card registration. It uses the required `Idempotency-Key` to safely return prior requests and avoids duplicate payments per registration. ARWEG/Admin simulation endpoints confirm or decline a payment.
 - Cancellation retains the registration flow from TASK-007 and settles the payment in the same transaction: a pending payment is cancelled; a paid registration is refunded only when the workshop starts in more than 48 hours or it is marked as a championship. At exactly 48 hours or later, non-championship cancellations keep the payment as `PAID` and receive no refund. Payment failure or cancellation releases the occupied vacancy and promotes the waiting list through the registration service.
+- `PaymentService.settleWorkshopCancellation`: called by `WorkshopService.cancel`; locks the workshop, its valid registrations (`RegistrationService.cancelAllForWorkshop`) and their payments, cancels pending payments, refunds paid ones unconditionally, records payment events and notifies participants with `WORKSHOP_CANCELLED`.
 - `V8__add_championship_and_payments.sql`: adds the immutable `championship` workshop flag plus payment/event tables, unique idempotency and registration constraints, valid-status checks and audit index.
 
 ## Evaluation module
@@ -159,6 +162,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 
 - `Post` supports `DRAFT`, `SCHEDULED`, `PUBLISHED` and `ARCHIVED`; only owners or admins manage it. A scheduled worker publishes due posts every minute, configurable with `app.posts.publication-interval-ms`.
 - Published posts are the only posts readable through feed, likes and comments. `PostLike` has a composite database key to prevent duplicate likes; comments are separately paginated. Comment authors can edit their content; authors, post owners and admins can delete it. Optional creation idempotency serializes on the user and replays the original comment.
+- `PostRepository.findFeed` uses an explicit `left join` on the workshop so posts without a linked workshop (announcements) are listed; implicit path joins would turn into inner joins.
 - `PostService` keeps post ownership and transition checks in the service layer. The deterministic feed ranks highlighted posts, the caller's selected workshop themes, upcoming workshops with open registration, then recency; it returns highlight/like metadata without exposing drafts or scheduled content.
 - `V10__create_posts.sql` adds posts, likes and comments with lifecycle constraints and feed/comment indexes.
 
@@ -215,6 +219,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `SecurityConfiguration`: stateless security, authorization routes, JSON authentication/authorization errors and an explicit CORS allow-list. `CORS_ALLOWED_ORIGINS` accepts comma-separated browser origins; development defaults cover the Expo web server on localhost port 8081.
 - `PasswordConfiguration`: BCrypt `PasswordEncoder` bean.
 - `OpenApiConfiguration`: API metadata and Bearer JWT scheme.
+- Stable conflict codes: `ConflictException` may carry an `ErrorCode`; the status stays `409` but `code` becomes `REGISTRATION_ALREADY_EXISTS`, `REGISTRATION_CLOSED` or `WORKSHOP_NOT_OPEN` on the registration flow so clients can show a specific message. Other conflicts keep `CONFLICT`.
 - `ApiErrorFactory`, `ApiErrorResponse`, `ApiFieldError`, `ErrorCode`, `ConflictException`, `GlobalExceptionHandler`: standard error contract.
 
 ## Maintenance

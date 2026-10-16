@@ -83,6 +83,16 @@ public class PostController {
         return service.archive(userId(authentication), admin(authentication), id);
     }
 
+    @GetMapping("/managed")
+    @PreAuthorize("hasAnyRole('ARWEG','ADMIN')")
+    @Operation(summary = "List the caller's posts in any status (ADMIN sees all posts)")
+    public PageResponse<PostResponse> managed(
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            Authentication authentication
+    ) {
+        return PageResponse.from(service.managed(userId(authentication), admin(authentication), pageable));
+    }
+
     @GetMapping("/feed")
     @Operation(summary = "List visible personalized feed posts")
     public PageResponse<PostResponse> feed(

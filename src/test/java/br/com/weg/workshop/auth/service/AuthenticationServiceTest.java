@@ -104,6 +104,18 @@ class AuthenticationServiceTest {
     }
 
     @Test
+    void wrongCurrentPasswordIsAValidationErrorAndKeepsSessions() {
+        UserEntity user = user();
+        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(encoder.matches("wrong", "hash")).thenReturn(false);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        service.changePassword(user.getId(), new ChangePasswordRequest("wrong", "NewPassword1")))
+                .isInstanceOf(InvalidCurrentPasswordException.class);
+        assertThat(user.getTokenVersion()).isZero();
+        verifyNoInteractions(refreshTokens);
+    }
+
+    @Test
     void blockedUserCannotRefreshExistingSession() {
         UserEntity user = user();
         user.block();

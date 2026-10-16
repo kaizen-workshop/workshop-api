@@ -152,6 +152,36 @@ class PaymentServiceTest {
         return payment;
     }
 
+    @Test
+    void workshopCancellationRefundsPaidAndCancelsPendingPaymentsEvenInsideRefundWindow() {
+        Registration paid = registration(false, LocalDate.now());
+        Payment paidPayment = Payment.create(paid, BigDecimal.TEN, PaymentMethod.PIX, "paid-ref", UUID.randomUUID());
+        paidPayment.markPaid();
+        paid.confirmPayment();
+        Registration pending = registration(false, LocalDate.now());
+        Payment pendingPayment = Payment.create(pending, BigDecimal.TEN, PaymentMethod.PIX, "pending-ref", UUID.randomUUID());
+        Registration waiting = registration(false, LocalDate.now());
+        UUID workshopId = UUID.randomUUID();
+        when(registrationService.cancelAllForWorkshop(workshopId)).thenAnswer(invocation -> {
+            List.of(paid, pending, waiting).forEach(Registration::cancel);
+            return List.of(paid, pending, waiting);
+        });
+        when(payments.findAllByRegistrationIdInForUpdate(any())).thenReturn(List.of(paidPayment, pendingPayment));
+
+        service.settleWorkshopCancellation(workshopId);
+
+        assertThat(paidPayment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(paid.getPaymentStatus()).isEqualTo(RegistrationPaymentStatus.REFUNDED);
+        assertThat(pendingPayment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+        assertThat(pending.getPaymentStatus()).isEqualTo(RegistrationPaymentStatus.CANCELLED);
+        assertThat(waiting.getStatus()).isEqualTo(RegistrationStatus.CANCELLED);
+        verify(gateway).refundPayment("paid-ref", BigDecimal.TEN);
+        verify(gateway).cancelPayment("pending-ref");
+        verify(events, times(2)).save(any(PaymentEvent.class));
+        verify(notifications, times(3)).notify(any(), eq(br.com.weg.workshop.notification.domain.NotificationType.WORKSHOP_CANCELLED),
+                any(), any(), any());
+    }
+
     private Registration registration(boolean championship, LocalDate startDate) {
         UserEntity user = UserEntity.create("User", UUID.randomUUID().toString(), UUID.randomUUID() + "@example.com", null, null, null,
                 "hash", Role.PARTICIPANT);

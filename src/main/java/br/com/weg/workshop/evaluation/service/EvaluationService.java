@@ -65,7 +65,7 @@ public class EvaluationService {
     @Transactional(readOnly = true)
     public EvaluationSummaryResponse summary(UUID managerId, boolean admin, UUID workshopId) {
         Workshop workshop = managedWorkshop(managerId, admin, workshopId);
-        Object[] values = evaluations.summarize(workshop.getId());
+        Object[] values = evaluations.summarize(workshop.getId()).get(0);
         return new EvaluationSummaryResponse(workshopId, ((Number) values[4]).longValue(), number(values[0]), number(values[1]), number(values[2]), number(values[3]));
     }
 

@@ -56,7 +56,8 @@ public class RegistrationService {
         if (existing != null) return existing;
         validateRegistrable(workshop);
         if (registrations.existsByUserIdAndWorkshopIdAndStatusIn(userId, workshopId, VALID_STATUSES)) {
-            throw new ConflictException("User already has a valid registration for this workshop.");
+            throw new ConflictException("User already has a valid registration for this workshop.",
+                    ErrorCode.REGISTRATION_ALREADY_EXISTS);
         }
 
         RegistrationStatus status = hasVacancy(workshop) ? registrationStatus(workshop) : RegistrationStatus.WAITING_LIST;
@@ -136,6 +137,18 @@ public class RegistrationService {
         return registration;
     }
 
+    /**
+     * Cancels every valid registration of a workshop cancelled by its organizer. No waiting-list promotion
+     * happens because the workshop no longer accepts participants; payment settlement is the caller's job.
+     */
+    @Transactional
+    public List<Registration> cancelAllForWorkshop(UUID workshopId) {
+        lockedWorkshop(workshopId);
+        List<Registration> cancelled = registrations.findAllByWorkshopIdAndStatusInForUpdate(workshopId, VALID_STATUSES);
+        cancelled.forEach(Registration::cancel);
+        return cancelled;
+    }
+
     @Transactional(readOnly = true)
     public Page<RegistrationResponse> listForWorkshop(UUID managerId, boolean admin, UUID workshopId,
                                                        RegistrationStatus status, Pageable pageable) {
@@ -173,10 +186,10 @@ public class RegistrationService {
     private void validateRegistrable(Workshop workshop) {
         Instant now = Instant.now();
         if (workshop.getStatus() != WorkshopStatus.PUBLISHED) {
-            throw new ConflictException("Only published workshops accept registrations.");
+            throw new ConflictException("Only published workshops accept registrations.", ErrorCode.WORKSHOP_NOT_OPEN);
         }
         if (now.isBefore(workshop.getRegistrationStart()) || now.isAfter(workshop.getRegistrationEnd())) {
-            throw new ConflictException("The registration period is closed.");
+            throw new ConflictException("The registration period is closed.", ErrorCode.REGISTRATION_CLOSED);
         }
     }
 

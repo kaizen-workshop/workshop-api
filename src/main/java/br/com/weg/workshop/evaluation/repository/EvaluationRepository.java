@@ -1,6 +1,7 @@
 package br.com.weg.workshop.evaluation.repository;
 
 import br.com.weg.workshop.evaluation.domain.Evaluation;
+import java.util.List;
 import java.util.UUID;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -14,5 +15,6 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, UUID> {
     Optional<Evaluation> findByUserIdAndClientOperationId(UUID userId, UUID clientOperationId);
     Page<Evaluation> findByWorkshopId(UUID workshopId, Pageable pageable);
     @Query("select avg(e.rating), avg(e.contentRating), avg(e.instructorRating), avg(e.organizationRating), count(e) from Evaluation e where e.workshop.id = :workshopId")
-    Object[] summarize(@Param("workshopId") UUID workshopId);
+    /** One row: avg overall, avg content, avg instructor, avg organization, count. */
+    List<Object[]> summarize(@Param("workshopId") UUID workshopId);
 }

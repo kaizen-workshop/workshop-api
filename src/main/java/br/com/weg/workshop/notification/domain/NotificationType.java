@@ -6,5 +6,6 @@ public enum NotificationType {
     WAITING_LIST_PROMOTED,
     PAYMENT_CONFIRMED,
     PAYMENT_DECLINED,
+    WORKSHOP_CANCELLED,
     MANUAL
 }

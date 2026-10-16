@@ -13,7 +13,7 @@ import br.com.weg.workshop.registration.service.RegistrationService;
 import br.com.weg.workshop.shared.error.*;
 import br.com.weg.workshop.workshop.domain.PaymentMethod;
 import java.time.*;
-import java.util.UUID;
+import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -120,6 +120,40 @@ public class PaymentService {
         if (result.replayed()) return RegistrationResponse.from(registration);
         payments.findByRegistrationId(registrationId).ifPresent(payment -> settleCancellation(payment, registration));
         return RegistrationResponse.from(registration);
+    }
+
+    /**
+     * Settles every registration of a workshop cancelled by its organizer: pending payments are cancelled and
+     * paid ones are always refunded, because the participant did not give up the vacancy. Each affected
+     * participant is notified in the same transaction.
+     */
+    @Transactional
+    public void settleWorkshopCancellation(UUID workshopId) {
+        List<Registration> cancelled = registrationService.cancelAllForWorkshop(workshopId);
+        if (cancelled.isEmpty()) return;
+        Map<UUID, Payment> paymentsByRegistration = new HashMap<>();
+        payments.findAllByRegistrationIdInForUpdate(cancelled.stream().map(Registration::getId).toList())
+                .forEach(payment -> paymentsByRegistration.put(payment.getRegistration().getId(), payment));
+        for (Registration registration : cancelled) {
+            Payment payment = paymentsByRegistration.get(registration.getId());
+            boolean refunded = false;
+            if (payment != null && payment.getStatus() == PaymentStatus.PENDING) {
+                gateway.cancelPayment(payment.getExternalReference());
+                payment.cancel();
+                events.save(PaymentEvent.create(payment, PaymentStatus.PENDING));
+            } else if (payment != null && payment.getStatus() == PaymentStatus.PAID) {
+                gateway.refundPayment(payment.getExternalReference(), payment.getAmount());
+                payment.refund();
+                registration.markPaymentRefunded();
+                events.save(PaymentEvent.create(payment, PaymentStatus.PAID));
+                refunded = true;
+            }
+            notifications.notify(registration.getUser().getId(), NotificationType.WORKSHOP_CANCELLED,
+                    "Workshop cancelado",
+                    "O workshop \"" + registration.getWorkshop().getTitle() + "\" foi cancelado pela organização"
+                            + (refunded ? " e o valor pago será reembolsado." : "."),
+                    Map.of("workshopId", workshopId.toString(), "registrationId", registration.getId().toString()));
+        }
     }
 
     private PaymentResponse createPayment(Registration registration, UUID idempotencyKey) {

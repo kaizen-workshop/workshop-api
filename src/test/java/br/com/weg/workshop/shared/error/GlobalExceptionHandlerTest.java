@@ -42,4 +42,18 @@ class GlobalExceptionHandlerTest {
             appender.stop();
         }
     }
+
+    @Test
+    void conflictsExposeTheirStableCodeAndDefaultToGenericConflict() {
+        var handler = new GlobalExceptionHandler(new ApiErrorFactory());
+        var request = new MockHttpServletRequest("POST", "/api/v1/workshops/x/registrations");
+
+        var specific = handler.handleConflict(request,
+                new ConflictException("closed", ErrorCode.REGISTRATION_CLOSED));
+        var generic = handler.handleConflict(request, new ConflictException("other"));
+
+        assertThat(specific.getStatusCode().value()).isEqualTo(409);
+        assertThat(specific.getBody().code()).isEqualTo(ErrorCode.REGISTRATION_CLOSED.name());
+        assertThat(generic.getBody().code()).isEqualTo(ErrorCode.CONFLICT.name());
+    }
 }

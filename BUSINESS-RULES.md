@@ -21,7 +21,9 @@ remain the requirements source; `API-DOCS.md` describes the endpoint contracts.
 
 Authentication is also checked for account status and token version. BLOCKED/INACTIVE
 accounts cannot use access tokens, refresh or reset passwords. Temporary-password
-accounts are limited to changing their password. Password change/reset increments the
+accounts are limited to changing their password. New passwords (change and reset) need 8–128
+characters with letters and digits. A wrong current password on change returns `400
+VALIDATION_ERROR` (field `currentPassword`), not `401`, so clients keep the session. Password change/reset increments the
 token version and revokes refresh sessions; the client must log in again. Refresh and
 reset token lookup locks serialize single-use consumption. Public auth endpoints accept
 their own credentials/token rather than an access JWT. Logout revokes the supplied
@@ -50,6 +52,12 @@ existing payment. Repeated simulated confirmations do not duplicate payment even
 notifications. Cancellation refunds paid registrations before the workshop's 48-hour
 deadline; championship workshops have the documented refund exception. Cancellation
 replay does not repeat the gateway call. Gateway integration is currently simulated.
+
+Cancelling a workshop (organizer/ADMIN) cancels every valid registration in the same
+transaction without waiting-list promotion: pending payments are cancelled and paid ones are
+always refunded, regardless of the 48-hour deadline, and each participant receives a
+`WORKSHOP_CANCELLED` notification. `FREE` workshops must cost zero; `PIX`/`CREDIT_CARD`
+workshops must have a positive price.
 
 ## Mobile, community and evaluations
 

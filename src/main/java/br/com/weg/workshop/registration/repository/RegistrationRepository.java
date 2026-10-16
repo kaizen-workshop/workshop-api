@@ -35,6 +35,12 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
 
     long countByWorkshopIdAndStatusIn(UUID workshopId, Collection<RegistrationStatus> statuses);
 
+    @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"user"})
+    @Query("select r from Registration r where r.workshop.id = :workshopId and r.status in :statuses")
+    List<Registration> findAllByWorkshopIdAndStatusInForUpdate(@Param("workshopId") UUID workshopId,
+                                                               @Param("statuses") Collection<RegistrationStatus> statuses);
+
     @Query(value = "select r.* from workshop.registration r join workshop.app_user u on u.id = r.user_id "
             + "where r.workshop_id = :workshopId and r.status = 'WAITING_LIST' and u.status = 'ACTIVE' "
             + "order by r.registered_at asc, r.id asc limit 1 for update", nativeQuery = true)
