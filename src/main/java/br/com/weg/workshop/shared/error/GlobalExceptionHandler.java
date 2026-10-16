@@ -1,5 +1,6 @@
 package br.com.weg.workshop.shared.error;
 
+import br.com.weg.workshop.auth.service.InvalidCurrentPasswordException;
 import br.com.weg.workshop.file.service.InvalidFileException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -69,6 +70,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({AccessDeniedException.class, AuthorizationDeniedException.class})
     public ResponseEntity<ApiErrorResponse> handleForbidden(HttpServletRequest request, RuntimeException exception) {
         return response(request, HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN, "Access is denied.", List.of());
+    }
+
+    @ExceptionHandler(InvalidCurrentPasswordException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidCurrentPassword(HttpServletRequest request, Exception exception) {
+        return response(request, HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Invalid request.",
+                List.of(new ApiFieldError("currentPassword", "A senha atual está incorreta.")));
     }
 
     @ExceptionHandler(BadCredentialsException.class)

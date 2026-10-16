@@ -29,7 +29,7 @@ public class AuthenticationService {
  @Transactional
  public void changePassword(UUID userId, ChangePasswordRequest request) {
   UserEntity user=users.findById(userId).orElseThrow(() -> new BadCredentialsException("Invalid credentials."));
-  if (!encoder.matches(request.currentPassword(), user.getPasswordHash())) throw new BadCredentialsException("Invalid credentials.");
+  if (!encoder.matches(request.currentPassword(), user.getPasswordHash())) throw new InvalidCurrentPasswordException();
   user.changePassword(encoder.encode(request.newPassword()));refreshTokens.revokeAllForUser(userId,Instant.now());
  }
  @Transactional public TokenResponse refresh(RefreshTokenRequest request){var token=refreshTokens.findByTokenHash(opaque.hash(request.refreshToken())).filter(RefreshToken::isUsable).orElseThrow(()->new BadCredentialsException("Invalid refresh token.")); UserEntity user=token.getUser();if(user.getStatus()==UserStatus.BLOCKED||user.getStatus()==UserStatus.INACTIVE)throw new BadCredentialsException("Invalid refresh token.");token.revoke(); return issue(user);}
