@@ -219,6 +219,7 @@ Refresh-token rotation, logout and password recovery are implemented with opaque
 - `SecurityConfiguration`: stateless security, authorization routes, JSON authentication/authorization errors and an explicit CORS allow-list. `CORS_ALLOWED_ORIGINS` accepts comma-separated browser origins; development defaults cover the Expo web server on localhost port 8081.
 - `PasswordConfiguration`: BCrypt `PasswordEncoder` bean.
 - `OpenApiConfiguration`: API metadata and Bearer JWT scheme.
+- Stable conflict codes: `ConflictException` may carry an `ErrorCode`; the status stays `409` but `code` becomes `REGISTRATION_ALREADY_EXISTS`, `REGISTRATION_CLOSED` or `WORKSHOP_NOT_OPEN` on the registration flow so clients can show a specific message. Other conflicts keep `CONFLICT`.
 - `ApiErrorFactory`, `ApiErrorResponse`, `ApiFieldError`, `ErrorCode`, `ConflictException`, `GlobalExceptionHandler`: standard error contract.
 
 ## Maintenance

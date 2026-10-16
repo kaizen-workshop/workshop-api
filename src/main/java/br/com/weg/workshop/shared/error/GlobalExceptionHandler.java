@@ -64,7 +64,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({ConflictException.class, DataIntegrityViolationException.class})
     public ResponseEntity<ApiErrorResponse> handleConflict(HttpServletRequest request, RuntimeException exception) {
-        return response(request, HttpStatus.CONFLICT, ErrorCode.CONFLICT, "The request conflicts with the current state.", List.of());
+        ErrorCode code = exception instanceof ConflictException conflict ? conflict.getCode() : ErrorCode.CONFLICT;
+        return response(request, HttpStatus.CONFLICT, code, "The request conflicts with the current state.", List.of());
     }
 
     @ExceptionHandler({AccessDeniedException.class, AuthorizationDeniedException.class})

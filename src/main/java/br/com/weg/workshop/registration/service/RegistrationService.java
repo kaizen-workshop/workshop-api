@@ -56,7 +56,8 @@ public class RegistrationService {
         if (existing != null) return existing;
         validateRegistrable(workshop);
         if (registrations.existsByUserIdAndWorkshopIdAndStatusIn(userId, workshopId, VALID_STATUSES)) {
-            throw new ConflictException("User already has a valid registration for this workshop.");
+            throw new ConflictException("User already has a valid registration for this workshop.",
+                    ErrorCode.REGISTRATION_ALREADY_EXISTS);
         }
 
         RegistrationStatus status = hasVacancy(workshop) ? registrationStatus(workshop) : RegistrationStatus.WAITING_LIST;
@@ -185,10 +186,10 @@ public class RegistrationService {
     private void validateRegistrable(Workshop workshop) {
         Instant now = Instant.now();
         if (workshop.getStatus() != WorkshopStatus.PUBLISHED) {
-            throw new ConflictException("Only published workshops accept registrations.");
+            throw new ConflictException("Only published workshops accept registrations.", ErrorCode.WORKSHOP_NOT_OPEN);
         }
         if (now.isBefore(workshop.getRegistrationStart()) || now.isAfter(workshop.getRegistrationEnd())) {
-            throw new ConflictException("The registration period is closed.");
+            throw new ConflictException("The registration period is closed.", ErrorCode.REGISTRATION_CLOSED);
         }
     }
 
