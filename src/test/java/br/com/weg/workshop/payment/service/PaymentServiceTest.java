@@ -146,6 +146,55 @@ class PaymentServiceTest {
         verifyNoInteractions(payments);
     }
 
+    @Test
+    void ownerCompletesSimulatedPixPaymentAndRegistrationIsConfirmed() {
+        Registration registration = registration(false, LocalDate.now().plusDays(5));
+        Payment payment = Payment.create(registration, BigDecimal.TEN, PaymentMethod.PIX, "reference", UUID.randomUUID());
+        when(payments.findByIdForUpdate(payment.getId())).thenReturn(Optional.of(payment));
+
+        var response = service.payWithSimulatedPix(registration.getUser().getId(), payment.getId());
+
+        assertThat(response.status()).isEqualTo("PAID");
+        assertThat(registration.getStatus()).isEqualTo(RegistrationStatus.CONFIRMED);
+        assertThat(registration.getPaymentStatus()).isEqualTo(RegistrationPaymentStatus.PAID);
+        verify(events).save(any(PaymentEvent.class));
+    }
+
+    @Test
+    void payingSimulatedPixTwiceDoesNotDuplicateEventsOrNotifications() {
+        Registration registration = registration(false, LocalDate.now().plusDays(5));
+        Payment payment = paidPayment(registration);
+        when(payments.findByIdForUpdate(payment.getId())).thenReturn(Optional.of(payment));
+
+        assertThat(service.payWithSimulatedPix(registration.getUser().getId(), payment.getId()).status()).isEqualTo("PAID");
+
+        verifyNoInteractions(events, notifications);
+    }
+
+    @Test
+    void anotherUserCannotPaySomeoneElsesPixPayment() {
+        Registration registration = registration(false, LocalDate.now().plusDays(5));
+        Payment payment = Payment.create(registration, BigDecimal.TEN, PaymentMethod.PIX, "reference", UUID.randomUUID());
+        when(payments.findByIdForUpdate(payment.getId())).thenReturn(Optional.of(payment));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> service.payWithSimulatedPix(UUID.randomUUID(), payment.getId()))
+                .isInstanceOf(br.com.weg.workshop.shared.error.ResourceNotFoundException.class);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
+    }
+
+    @Test
+    void cardPaymentsCannotBeCompletedThroughTheSimulatedPixShortcut() {
+        Registration registration = registration(false, LocalDate.now().plusDays(5));
+        Payment payment = Payment.create(registration, BigDecimal.TEN, PaymentMethod.CREDIT_CARD, "reference", UUID.randomUUID());
+        when(payments.findByIdForUpdate(payment.getId())).thenReturn(Optional.of(payment));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> service.payWithSimulatedPix(registration.getUser().getId(), payment.getId()))
+                .isInstanceOf(br.com.weg.workshop.shared.error.ConflictException.class);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
+    }
+
     private Payment paidPayment(Registration registration) {
         Payment payment = Payment.create(registration, BigDecimal.TEN, PaymentMethod.PIX, "reference", UUID.randomUUID());
         payment.markPaid();
