@@ -1,0 +1,1 @@
+package br.com.weg.workshop.post.dto; import jakarta.validation.constraints.*; import java.util.UUID; public record PostRequest(@NotBlank @Size(max=180) String title,@NotBlank @Size(max=10000) String content,@Size(max=500) String image,UUID workshopId,UUID categoryId,boolean highlight) { }

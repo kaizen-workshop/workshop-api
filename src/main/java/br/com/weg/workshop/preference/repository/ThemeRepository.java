@@ -1,0 +1,1 @@
+package br.com.weg.workshop.preference.repository; import br.com.weg.workshop.preference.domain.Theme; import java.util.*; import org.springframework.data.jpa.repository.JpaRepository; public interface ThemeRepository extends JpaRepository<Theme,UUID>{List<Theme> findByActiveTrue(); boolean existsByName(String name);}

@@ -1,0 +1,140 @@
+package br.com.weg.workshop.notification.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+import br.com.weg.workshop.notification.domain.*;
+import br.com.weg.workshop.notification.dto.RegisterDeviceRequest;
+import br.com.weg.workshop.notification.push.PushProvider;
+import br.com.weg.workshop.notification.repository.*;
+import br.com.weg.workshop.shared.error.ResourceNotFoundException;
+import br.com.weg.workshop.user.domain.*;
+import br.com.weg.workshop.user.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
+import java.util.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class NotificationServiceTest {
+    @Mock NotificationRepository notifications;
+    @Mock NotificationDeviceRepository devices;
+    @Mock UserRepository users;
+    @Mock PushProvider push;
+    private NotificationService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new NotificationService(notifications, devices, users, push, new ObjectMapper());
+    }
+
+    @Test
+    void persistsAnAutomaticNotificationBeforePushDelivery() {
+        UserEntity user = user("participant");
+        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(notifications.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        NotificationDevice device = NotificationDevice.create(user, "push-token", DevicePlatform.ANDROID);
+        when(devices.findPendingDeliveryDevices(any(UUID.class), eq(user.getId()))).thenReturn(List.of(device));
+
+        service.notify(user.getId(), NotificationType.REGISTRATION_CREATED, "Registration", "Created",
+                Map.of("registrationId", "registration-id"));
+
+        verify(notifications).save(any(Notification.class));
+        verify(push).send("push-token", "Registration", "Created", Map.of("registrationId", "registration-id"));
+        verify(devices).recordDelivery(any(UUID.class), eq(device.getId()), any(Instant.class));
+        verify(notifications).markDelivered(any(UUID.class), any(Instant.class));
+    }
+
+    @Test
+    void keepsTheCommittedNotificationSuccessfulWhenPushDeliveryFails() {
+        UserEntity user = user("participant");
+        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(notifications.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        NotificationDevice device = NotificationDevice.create(user, "push-token", DevicePlatform.ANDROID);
+        when(devices.findPendingDeliveryDevices(any(UUID.class), eq(user.getId()))).thenReturn(List.of(device));
+        doThrow(new IllegalStateException("provider unavailable")).when(push)
+                .send("push-token", "Registration", "Created", Map.of());
+
+        assertThatCode(() -> service.notify(user.getId(), NotificationType.REGISTRATION_CREATED,
+                "Registration", "Created", Map.of())).doesNotThrowAnyException();
+
+        verify(notifications).save(any(Notification.class));
+        verify(notifications, never()).markDelivered(any(), any());
+        verify(devices, never()).recordDelivery(any(), any(), any());
+    }
+
+    @Test
+    void retrySkipsDevicesThatAlreadyReceivedTheNotification() {
+        UserEntity user = user("participant");
+        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(notifications.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        NotificationDevice successful = NotificationDevice.create(user, "successful-token", DevicePlatform.ANDROID);
+        NotificationDevice failing = NotificationDevice.create(user, "failing-token", DevicePlatform.IOS);
+        when(devices.findPendingDeliveryDevices(any(UUID.class), eq(user.getId())))
+                .thenReturn(List.of(successful, failing), List.of(failing));
+        doAnswer(invocation -> {
+            if ("failing-token".equals(invocation.getArgument(0))) {
+                throw new IllegalStateException("provider unavailable");
+            }
+            return null;
+        }).when(push).send(anyString(), eq("Registration"), eq("Created"), eq(Map.of()));
+
+        service.notify(user.getId(), NotificationType.REGISTRATION_CREATED, "Registration", "Created", Map.of());
+        var notificationCaptor = org.mockito.ArgumentCaptor.forClass(Notification.class);
+        verify(notifications).save(notificationCaptor.capture());
+        when(notifications.findByDeliveredAtIsNullAndScheduledAtLessThanEqual(any(Instant.class)))
+                .thenReturn(List.of(notificationCaptor.getValue()));
+
+        service.deliverScheduled();
+
+        verify(push, times(1)).send("successful-token", "Registration", "Created", Map.of());
+        verify(push, times(2)).send("failing-token", "Registration", "Created", Map.of());
+        verify(devices, times(1)).recordDelivery(
+                eq(notificationCaptor.getValue().getId()), eq(successful.getId()), any(Instant.class));
+    }
+
+    @Test
+    void onlyTheOwnerCanMarkANotificationAsRead() {
+        UserEntity owner = user("owner");
+        Notification notification = Notification.create(owner, NotificationType.MANUAL, "Title", "Message", "{}",
+                Instant.now());
+        when(notifications.findById(notification.getId())).thenReturn(Optional.of(notification));
+
+        assertThatThrownBy(() -> service.markRead(UUID.randomUUID(), notification.getId()))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        var response = service.markRead(owner.getId(), notification.getId());
+        assertThat(response.read()).isTrue();
+        assertThat(response.updatedAt()).isAfterOrEqualTo(response.createdAt());
+    }
+
+    @Test
+    void registeringTheSameTokenReassignsAndReactivatesTheDevice() {
+        UserEntity previous = user("previous");
+        UserEntity current = user("current");
+        NotificationDevice device = NotificationDevice.create(previous, "push-token", DevicePlatform.ANDROID);
+        device.deactivate();
+        when(users.findById(current.getId())).thenReturn(Optional.of(current));
+        when(devices.findByToken("push-token")).thenReturn(Optional.of(device));
+
+        var response = service.registerDevice(current.getId(),
+                new RegisterDeviceRequest("push-token", DevicePlatform.IOS));
+
+        assertThat(response.active()).isTrue();
+        assertThat(response.platform()).isEqualTo("IOS");
+        assertThat(device.getUser().getId()).isEqualTo(current.getId());
+        verify(devices, never()).save(any());
+    }
+
+    private UserEntity user(String username) {
+        return UserEntity.create(username, username, username + "@example.com", null, null, null, "hash",
+                Role.PARTICIPANT);
+    }
+}

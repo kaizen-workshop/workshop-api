@@ -1,5 +1,7 @@
 package br.com.weg.workshop.shared.error;
 
+import br.com.weg.workshop.auth.service.InvalidCurrentPasswordException;
+import br.com.weg.workshop.file.service.InvalidFileException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
@@ -7,15 +9,24 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.servlet.HandlerMapping;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private final ApiErrorFactory apiErrorFactory;
 
@@ -34,19 +45,36 @@ public class GlobalExceptionHandler {
         return response(request, HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Invalid request.", errors);
     }
 
-    @ExceptionHandler({ConstraintViolationException.class, IllegalArgumentException.class})
-    public ResponseEntity<ApiErrorResponse> handleInvalidRequest(HttpServletRequest request, RuntimeException exception) {
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingHeader(
+            HttpServletRequest request,
+            MissingRequestHeaderException exception
+    ) {
+        return response(request, HttpStatus.BAD_REQUEST, ErrorCode.INVALID_REQUEST, "Invalid request.",
+                List.of(new ApiFieldError(exception.getHeaderName(), "O header é obrigatório.")));
+    }
+
+    @ExceptionHandler({ConstraintViolationException.class, IllegalArgumentException.class,
+            MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<ApiErrorResponse> handleInvalidRequest(HttpServletRequest request, Exception exception) {
         return response(request, HttpStatus.BAD_REQUEST, ErrorCode.INVALID_REQUEST, "Invalid request.", List.of());
     }
 
-    @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<ApiErrorResponse> handleNotFound(HttpServletRequest request, NoResourceFoundException exception) {
+    @ExceptionHandler({InvalidFileException.class, MaxUploadSizeExceededException.class})
+    public ResponseEntity<ApiErrorResponse> handleInvalidFile(HttpServletRequest request, Exception exception) {
+        return response(request, HttpStatus.UNPROCESSABLE_ENTITY, ErrorCode.INVALID_FILE,
+                "The uploaded file is invalid.", List.of());
+    }
+
+    @ExceptionHandler({NoResourceFoundException.class, ResourceNotFoundException.class})
+    public ResponseEntity<ApiErrorResponse> handleNotFound(HttpServletRequest request, Exception exception) {
         return response(request, HttpStatus.NOT_FOUND, ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.", List.of());
     }
 
     @ExceptionHandler({ConflictException.class, DataIntegrityViolationException.class})
     public ResponseEntity<ApiErrorResponse> handleConflict(HttpServletRequest request, RuntimeException exception) {
-        return response(request, HttpStatus.CONFLICT, ErrorCode.CONFLICT, "The request conflicts with the current state.", List.of());
+        ErrorCode code = exception instanceof ConflictException conflict ? conflict.getCode() : ErrorCode.CONFLICT;
+        return response(request, HttpStatus.CONFLICT, code, "The request conflicts with the current state.", List.of());
     }
 
     @ExceptionHandler({AccessDeniedException.class, AuthorizationDeniedException.class})
@@ -54,8 +82,25 @@ public class GlobalExceptionHandler {
         return response(request, HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN, "Access is denied.", List.of());
     }
 
+    @ExceptionHandler(InvalidCurrentPasswordException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidCurrentPassword(HttpServletRequest request, Exception exception) {
+        return response(request, HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Invalid request.",
+                List.of(new ApiFieldError("currentPassword", "A senha atual está incorreta.")));
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiErrorResponse> handleBadCredentials(
+            HttpServletRequest request,
+            BadCredentialsException exception
+    ) {
+        return response(request, HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED,
+                "Invalid credentials.", List.of());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(HttpServletRequest request, Exception exception) {
+        Object pattern = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        LOG.error("Unhandled request failure endpoint={}", pattern == null ? "unmapped" : pattern, exception);
         return response(request, HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR,
                 "An unexpected error occurred.", List.of());
     }

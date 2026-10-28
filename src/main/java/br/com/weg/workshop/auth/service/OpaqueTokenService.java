@@ -1,0 +1,3 @@
+package br.com.weg.workshop.auth.service;
+import java.nio.charset.StandardCharsets; import java.security.*; import java.util.*; import org.springframework.stereotype.Service;
+@Service public class OpaqueTokenService { private final SecureRandom random=new SecureRandom(); public String create(){byte[] b=new byte[48];random.nextBytes(b);return Base64.getUrlEncoder().withoutPadding().encodeToString(b);} public String hash(String value){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));}catch(NoSuchAlgorithmException e){throw new IllegalStateException(e);}} }

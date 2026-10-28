@@ -1,0 +1,1 @@
+package br.com.weg.workshop.preference.repository; import br.com.weg.workshop.preference.domain.Category; import java.util.*; import org.springframework.data.jpa.repository.JpaRepository; public interface CategoryRepository extends JpaRepository<Category,UUID>{List<Category> findByActiveTrue(); boolean existsByName(String name);}

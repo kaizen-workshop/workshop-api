@@ -993,3 +993,16 @@ Escolha a que:
 5. será mais fácil para outro desenvolvedor ou agente alterar depois.
 
 Este projeto deve continuar compreensível mesmo sendo desenvolvido com forte apoio de IA.
+
+---
+
+# 38. API-DOCS.md
+
+`API-DOCS.md` é a referência complementar sobre as classes e contratos já implementados.
+Antes de alterar um módulo documentado, o agente deve lê-lo. Na mesma task, deve atualizá-lo
+sempre que criar, remover ou alterar materialmente endpoint, DTO, entidade, repositório,
+service, controller, filtro de segurança, migration ou comportamento público.
+
+A atualização deve informar finalidade, acesso, request/response quando aplicável e estado
+real do trabalho. Funcionalidades incompletas devem estar marcadas como `em andamento`; nunca
+devem ser documentadas como disponíveis.

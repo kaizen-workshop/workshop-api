@@ -1,0 +1,49 @@
+package br.com.weg.workshop.payment.controller;
+
+import br.com.weg.workshop.payment.dto.PaymentResponse;
+import br.com.weg.workshop.payment.service.PaymentService;
+import io.swagger.v3.oas.annotations.Operation;
+import java.util.UUID;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+public class PaymentController {
+    private final PaymentService service;
+    public PaymentController(PaymentService service) { this.service = service; }
+
+    @PostMapping("/api/v1/registrations/{registrationId}/payments")
+    @Operation(summary = "Create an idempotent simulated payment")
+    public ResponseEntity<PaymentResponse> create(@PathVariable UUID registrationId,
+                                                   @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+                                                   Authentication authentication) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(UUID.fromString(authentication.getName()), registrationId, idempotencyKey));
+    }
+
+    @PatchMapping("/api/v1/payments/{paymentId}/pay")
+    @Operation(summary = "Complete a simulated PIX payment as the registration owner")
+    public PaymentResponse payWithSimulatedPix(@PathVariable UUID paymentId, Authentication authentication) {
+        return service.payWithSimulatedPix(UUID.fromString(authentication.getName()), paymentId);
+    }
+
+    @PatchMapping("/api/v1/payments/{paymentId}/simulate/paid")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Simulate a successful payment callback")
+    public PaymentResponse simulatePaid(@PathVariable UUID paymentId, Authentication authentication) {
+        return service.simulatePaid(UUID.fromString(authentication.getName()), admin(authentication), paymentId);
+    }
+
+    @PatchMapping("/api/v1/payments/{paymentId}/simulate/declined")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Simulate a declined payment callback")
+    public PaymentResponse simulateDeclined(@PathVariable UUID paymentId, Authentication authentication) {
+        return service.simulateDeclined(UUID.fromString(authentication.getName()), admin(authentication), paymentId);
+    }
+
+    private boolean admin(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+    }
+}

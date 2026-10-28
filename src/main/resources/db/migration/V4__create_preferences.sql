@@ -1,0 +1,3 @@
+CREATE TABLE workshop.theme (id UUID PRIMARY KEY, name VARCHAR(120) NOT NULL UNIQUE, description VARCHAR(500), active BOOLEAN NOT NULL, created_at TIMESTAMP WITH TIME ZONE NOT NULL, updated_at TIMESTAMP WITH TIME ZONE NOT NULL);
+CREATE TABLE workshop.category (id UUID PRIMARY KEY, name VARCHAR(120) NOT NULL UNIQUE, description VARCHAR(500), active BOOLEAN NOT NULL, created_at TIMESTAMP WITH TIME ZONE NOT NULL, updated_at TIMESTAMP WITH TIME ZONE NOT NULL);
+CREATE TABLE workshop.user_theme (user_id UUID NOT NULL REFERENCES workshop.app_user(id), theme_id UUID NOT NULL REFERENCES workshop.theme(id), PRIMARY KEY (user_id, theme_id));
