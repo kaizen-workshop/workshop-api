@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -36,6 +38,8 @@ import br.com.weg.workshop.notification.service.NotificationService;
 import br.com.weg.workshop.administration.service.WorkshopAdministrationService;
 import br.com.weg.workshop.audit.service.AuditService;
 import br.com.weg.workshop.audit.service.MetricService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
@@ -45,6 +49,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.web.servlet.MockMvc;
@@ -349,6 +354,83 @@ class FoundationIntegrationTest {
         mockMvc.perform(get("/api/v1/foundation-test/unknown").with(user("participant").roles("PARTICIPANT")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+    }
+
+    private static final java.util.Set<String> PUBLIC_OPERATIONS = java.util.Set.of(
+            "POST /api/v1/auth/forgot-password",
+            "POST /api/v1/auth/login",
+            "POST /api/v1/auth/logout",
+            "POST /api/v1/auth/refresh",
+            "POST /api/v1/auth/reset-password");
+
+    @Test
+    void onlyTheDocumentedAuthenticationOperationsArePublic() throws Exception {
+        java.util.List<String> publicOperations = new java.util.ArrayList<>();
+        java.util.List<String> protectedOperations = new java.util.ArrayList<>();
+        for (var operation : apiOperations()) {
+            (operation.isPublic() ? publicOperations : protectedOperations).add(operation.key());
+        }
+
+        assertThat(publicOperations).containsExactlyInAnyOrderElementsOf(PUBLIC_OPERATIONS);
+        assertThat(protectedOperations).isNotEmpty();
+        for (var operation : apiOperations()) {
+            if (operation.isPublic()) {
+                continue;
+            }
+            mockMvc.perform(request(operation.method(), operation.path()).contentType("application/json")
+                            .content("{}"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Test
+    void adminAndArwegAreasRejectLowerRolesOnEveryOperation() throws Exception {
+        int checked = 0;
+        for (var operation : apiOperations()) {
+            boolean adminOnly = operation.path().startsWith("/api/v1/admin/")
+                    || operation.path().contains("/simulate/");
+            boolean arwegArea = operation.path().startsWith("/api/v1/arweg/");
+            if (!adminOnly && !arwegArea) {
+                continue;
+            }
+            checked++;
+            mockMvc.perform(request(operation.method(), operation.path()).contentType("application/json")
+                            .content("{}").with(user(java.util.UUID.randomUUID().toString()).roles("PARTICIPANT")))
+                    .andExpect(status().isForbidden());
+            if (adminOnly) {
+                mockMvc.perform(request(operation.method(), operation.path()).contentType("application/json")
+                                .content("{}").with(user(java.util.UUID.randomUUID().toString()).roles("ARWEG")))
+                        .andExpect(status().isForbidden());
+            }
+        }
+        assertThat(checked).isGreaterThan(10);
+    }
+
+    private java.util.List<ApiOperation> apiOperations() throws Exception {
+        String body = mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString();
+        JsonNode paths = new ObjectMapper().readTree(body).get("paths");
+        java.util.List<ApiOperation> operations = new java.util.ArrayList<>();
+        paths.fields().forEachRemaining(path -> path.getValue().fields().forEachRemaining(method -> {
+            if (!java.util.Set.of("get", "post", "put", "patch", "delete").contains(method.getKey())) {
+                return;
+            }
+            JsonNode security = method.getValue().get("security");
+            String concrete = path.getKey().replaceAll("[{][^}]+[}]", java.util.UUID.randomUUID().toString());
+            operations.add(new ApiOperation(HttpMethod.valueOf(method.getKey().toUpperCase()), path.getKey(),
+                    concrete, security == null || security.isEmpty()));
+        }));
+        return operations;
+    }
+
+    private record ApiOperation(HttpMethod method, String template, String concretePath, boolean isPublic) {
+        String key() {
+            return method + " " + template;
+        }
+
+        String path() {
+            return concretePath;
+        }
     }
 
     @RestController

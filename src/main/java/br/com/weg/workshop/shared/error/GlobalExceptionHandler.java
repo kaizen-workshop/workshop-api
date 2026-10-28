@@ -45,8 +45,17 @@ public class GlobalExceptionHandler {
         return response(request, HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Invalid request.", errors);
     }
 
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingHeader(
+            HttpServletRequest request,
+            MissingRequestHeaderException exception
+    ) {
+        return response(request, HttpStatus.BAD_REQUEST, ErrorCode.INVALID_REQUEST, "Invalid request.",
+                List.of(new ApiFieldError(exception.getHeaderName(), "O header é obrigatório.")));
+    }
+
     @ExceptionHandler({ConstraintViolationException.class, IllegalArgumentException.class,
-            MissingRequestHeaderException.class, MethodArgumentTypeMismatchException.class})
+            MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ApiErrorResponse> handleInvalidRequest(HttpServletRequest request, Exception exception) {
         return response(request, HttpStatus.BAD_REQUEST, ErrorCode.INVALID_REQUEST, "Invalid request.", List.of());
     }

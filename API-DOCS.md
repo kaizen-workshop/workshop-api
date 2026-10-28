@@ -32,8 +32,8 @@ internal Spring Data page implementations are never serialized directly.
 | `PATCH /api/v1/registrations/{id}/cancel` | Registration owner | Requires UUID `Idempotency-Key`. Cancels a valid registration and promotes the first eligible waiting-list participant if capacity is freed. A retry with the same key skips settlement/promotion; a key reused for another cancellation returns `409`. |
 | `GET /api/v1/workshops/{id}/registrations` | Workshop creator or `ADMIN` | Lists workshop registrations, paginated and optionally filtered by registration `status`. |
 | `POST /api/v1/registrations/{id}/payments` | Registration owner | Creates a simulated payment for a pending PIX/card registration. Requires a UUID `Idempotency-Key`; repeated use for the same registration returns the prior `PaymentResponse`. |
-| `PATCH /api/v1/payments/{id}/simulate/paid` | `ADMIN` | Simulates a successful internal gateway callback and confirms the registration. |
-| `PATCH /api/v1/payments/{id}/simulate/declined` | `ADMIN` | Simulates a declined internal gateway callback, cancels the registration and releases its vacancy. |
+| `PATCH /api/v1/payments/{id}/simulate/paid` | `ADMIN` | Simulates a successful internal gateway callback and confirms the registration. Idempotent: approving an already `PAID` payment returns `200` with its current state; approving a `DECLINED` one returns `409`. |
+| `PATCH /api/v1/payments/{id}/simulate/declined` | `ADMIN` | Simulates a declined internal gateway callback, cancels the registration and releases its vacancy. Declining a payment that is already `PAID` returns `409`. |
 | `POST /api/v1/workshops/{id}/image` | Creator or `ADMIN` | Uploads or replaces the workshop image from multipart part `file`. Accepts JPEG, PNG and WebP up to 10 MB. Returns `200` with `WorkshopFileResponse`. |
 | `GET /api/v1/workshops/{id}/image/content` | Authenticated viewer | Downloads the stored workshop image. |
 | `DELETE /api/v1/workshops/{id}/image` | Creator or `ADMIN` | Deletes the workshop image. Returns `204`. |
@@ -68,7 +68,7 @@ internal Spring Data page implementations are never serialized directly.
 | `DELETE /api/v1/notification-devices/{id}` | Device owner | Deactivates a device and returns `204`. |
 | `POST /api/v1/arweg/notifications` | `ARWEG`, `ADMIN` | Creates immediate or scheduled manual notifications for the provided user IDs. |
 | `GET /api/v1/arweg/workshops/{id}/participants` | Workshop creator or `ADMIN` | Paginates participants with optional registration, payment and attendance status filters. |
-| `GET /api/v1/arweg/workshops/{id}/payments` | Workshop creator or `ADMIN` | Lists the workshop's payments (id, registration, participant, amount, status, method) newest first, so an `ADMIN` can confirm or decline a simulated payment by id. |
+| `GET /api/v1/arweg/workshops/{id}/payments` | Workshop creator or `ADMIN` | Lists the workshop's payments (`paymentId`, `registrationId`, participant, amount, status, method; the same UUID is `id` in `PaymentResponse`) newest first, so an `ADMIN` can confirm or decline a simulated payment by id. |
 | `PATCH /api/v1/arweg/workshops/{id}/attendance` | Workshop creator or `ADMIN` | Atomically records up to 500 attendance updates. |
 | `GET /api/v1/arweg/workshops/{id}/participants/export` | Workshop creator or `ADMIN` | Exports the filtered participant list as `CSV` or `XLSX`. |
 | `GET /api/v1/arweg/dashboard` | `ARWEG`, `ADMIN` | Returns workshop, registration, waiting-list and attendance totals scoped to managed workshops; admins see all workshops. |

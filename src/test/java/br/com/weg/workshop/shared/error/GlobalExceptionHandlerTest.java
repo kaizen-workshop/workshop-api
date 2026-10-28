@@ -56,4 +56,24 @@ class GlobalExceptionHandlerTest {
         assertThat(specific.getBody().code()).isEqualTo(ErrorCode.REGISTRATION_CLOSED.name());
         assertThat(generic.getBody().code()).isEqualTo(ErrorCode.CONFLICT.name());
     }
+
+    @Test
+    void missingHeadersNameTheHeaderInTheErrorList() throws Exception {
+        var handler = new GlobalExceptionHandler(new ApiErrorFactory());
+        var request = new MockHttpServletRequest("POST", "/api/v1/workshops/x/registrations");
+        var parameter = new org.springframework.core.MethodParameter(
+                getClass().getDeclaredMethod("headerParameter", String.class), 0);
+
+        var response = handler.handleMissingHeader(request,
+                new org.springframework.web.bind.MissingRequestHeaderException("Idempotency-Key", parameter));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.INVALID_REQUEST.name());
+        assertThat(response.getBody().errors()).hasSize(1);
+        assertThat(response.getBody().errors().getFirst().field()).isEqualTo("Idempotency-Key");
+    }
+
+    @SuppressWarnings("unused")
+    private void headerParameter(String header) {
+    }
 }
